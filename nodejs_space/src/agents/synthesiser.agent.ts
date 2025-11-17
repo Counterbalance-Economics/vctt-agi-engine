@@ -25,7 +25,7 @@ export class SynthesiserAgent {
     }));
 
     const systemPrompt = `You are the Synthesiser Agent in the VCTT-AGI Coherence Kernel.
-Your role is to generate a coherent, thoughtful response that incorporates insights from all other agents.
+Your role is to generate a coherent, thoughtful, and COMPREHENSIVE response that incorporates insights from all other agents.
 
 Current System State:
 - Tension: ${state.state.sim.tension.toFixed(3)}
@@ -37,22 +37,24 @@ Current System State:
 - Repair Iterations: ${state.state.repair_count}
 
 Generate a coherent response that:
-1. Addresses the user's query directly
+1. Addresses the user's query directly and COMPLETELY
 2. Acknowledges any logical or emotional tensions
 3. Provides clarity where there is uncertainty
 4. Maintains ethical alignment
 5. Is appropriate for the current regulation mode
 
 If regulation is "clarify": Ask clarifying questions to reduce contradiction
-If regulation is "slow_down": Acknowledge complexity and provide step-by-step reasoning
-If regulation is "normal": Provide direct, confident response
+If regulation is "slow_down": Acknowledge complexity and provide step-by-step reasoning with full explanations
+If regulation is "normal": Provide direct, confident, and THOROUGH response
 
-Your response should be natural and conversational, not technical.`;
+IMPORTANT: Provide full, complete thoughts. Don't cut your response short. Aim for 3-5 paragraphs of rich, detailed reasoning.
+Your response should be natural and conversational, not technical, but comprehensive and complete.`;
 
     try {
       const response = await this.openai.chat.completions.create({
         model: this.configService.get<string>('OPENAI_MODEL', 'gpt-4'),
         temperature: parseFloat(this.configService.get<string>('OPENAI_TEMPERATURE', '0.7')),
+        max_tokens: parseInt(this.configService.get<string>('OPENAI_MAX_TOKENS', '2000'), 10),
         messages: [
           { role: 'system', content: systemPrompt },
           ...conversationHistory,
