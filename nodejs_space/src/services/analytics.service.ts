@@ -96,31 +96,55 @@ export class AnalyticsService {
   async getTrustMetrics(userId?: string, sessionId?: string) {
     this.logger.log('Getting trust metrics');
 
-    let query = this.stateRepo.createQueryBuilder('state')
-      .leftJoin('conversations', 'conv', 'conv.id = state.session_id')
-      .select(['state.session_id', 'state.state', 'state.updated_at', 'conv.user_id', 'conv.created_at'])
+    // Get states
+    let stateQuery = this.stateRepo.createQueryBuilder('state')
       .orderBy('state.updated_at', 'ASC');
 
-    if (userId) {
-      query = query.where('conv.user_id = :userId', { userId });
-    }
-
     if (sessionId) {
-      query = query.andWhere('state.session_id = :sessionId', { sessionId });
+      stateQuery = stateQuery.where('state.session_id = :sessionId', { sessionId });
     }
 
-    const states = await query.getRawMany();
+    const states = await stateQuery.getMany();
 
-    const metrics = states.map(s => ({
-      session_id: s.state_session_id,
-      user_id: s.conv_user_id,
-      timestamp: s.state_updated_at,
-      trust_tau: s.state_state?.trust_tau || 1.0,
-      contradiction: s.state_state?.contradiction || 0.0,
-      sim: s.state_state?.sim || {},
-      regulation: s.state_state?.regulation || 'normal',
-      repair_count: s.state_state?.repair_count || 0,
-    }));
+    // Get conversations to filter by user_id if needed
+    let conversationMap = new Map<string, any>();
+    if (userId || !sessionId) {
+      const sessionIds = states.map(s => s.session_id);
+      if (sessionIds.length > 0) {
+        let convQuery = this.convRepo.createQueryBuilder('conv')
+          .where('conv.id IN (:...sessionIds)', { sessionIds });
+
+        if (userId) {
+          convQuery = convQuery.andWhere('conv.user_id = :userId', { userId });
+        }
+
+        const conversations = await convQuery.getMany();
+        conversationMap = new Map(conversations.map(c => [c.id, c]));
+      }
+    }
+
+    // Build metrics
+    const metrics = states
+      .filter(s => {
+        // Filter by userId if specified
+        if (userId) {
+          return conversationMap.has(s.session_id);
+        }
+        return true;
+      })
+      .map(s => {
+        const conv = conversationMap.get(s.session_id);
+        return {
+          session_id: s.session_id,
+          user_id: conv?.user_id || null,
+          timestamp: s.updated_at,
+          trust_tau: s.state?.trust_tau || 1.0,
+          contradiction: s.state?.contradiction || 0.0,
+          sim: s.state?.sim || {},
+          regulation: s.state?.regulation || 'normal',
+          repair_count: s.state?.repair_count || 0,
+        };
+      });
 
     return {
       total: metrics.length,
