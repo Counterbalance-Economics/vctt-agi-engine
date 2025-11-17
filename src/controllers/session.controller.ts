@@ -1,0 +1,87 @@
+
+import { Controller, Post, Get, Body, Param, ValidationPipe, HttpCode, HttpStatus } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import { VCTTEngineService } from '../services/vctt-engine.service';
+import {
+  StartSessionDto,
+  ProcessStepDto,
+  SessionResponseDto,
+  StepResponseDto,
+  SessionDetailsDto,
+} from '../dto/session.dto';
+
+@ApiTags('VCTT Session Management')
+@Controller('api/v1/session')
+export class SessionController {
+  constructor(private readonly engine: VCTTEngineService) {}
+
+  @Post('start')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Start a new VCTT-AGI conversation session',
+    description: 'Initializes a new conversation session with default internal state and processes the initial user input.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Session successfully created',
+    type: SessionResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid input parameters',
+  })
+  async startSession(
+    @Body(ValidationPipe) body: StartSessionDto,
+  ): Promise<SessionResponseDto> {
+    const sessionId = await this.engine.startSession(body.user_id, body.input);
+    return { session_id: sessionId };
+  }
+
+  @Post('step')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Process a conversation step',
+    description: 'Processes user input through the full VCTT-AGI pipeline: Agents → Modules → Repair Loop → Response Generation.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Step successfully processed',
+    type: StepResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Session not found',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid input parameters',
+  })
+  async processStep(
+    @Body(ValidationPipe) body: ProcessStepDto,
+  ): Promise<StepResponseDto> {
+    return await this.engine.processStep(body.session_id, body.input);
+  }
+
+  @Get(':id')
+  @ApiOperation({
+    summary: 'Get full session details',
+    description: 'Retrieves complete conversation history and current internal state for a session.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Session ID (UUID)',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Session details retrieved',
+    type: SessionDetailsDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Session not found',
+  })
+  async getSession(@Param('id') id: string): Promise<SessionDetailsDto> {
+    return await this.engine.getSession(id);
+  }
+}
