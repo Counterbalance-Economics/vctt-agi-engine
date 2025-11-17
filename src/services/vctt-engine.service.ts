@@ -1,5 +1,5 @@
 
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -20,11 +20,16 @@ import { RILModule } from '../modules/ril.module';
 export class VCTTEngineService {
   private readonly logger = new Logger(VCTTEngineService.name);
   private readonly max_repairs: number;
+  
+  // In-memory storage for stateless mode (when no database)
+  private inMemoryConversations: Map<string, any> = new Map();
+  private inMemoryMessages: Map<string, any[]> = new Map();
+  private inMemoryStates: Map<string, any> = new Map();
 
   constructor(
-    @InjectRepository(Conversation) private convRepo: Repository<Conversation>,
-    @InjectRepository(Message) private msgRepo: Repository<Message>,
-    @InjectRepository(InternalState) private stateRepo: Repository<InternalState>,
+    @Optional() @InjectRepository(Conversation) private convRepo: Repository<Conversation> | null,
+    @Optional() @InjectRepository(Message) private msgRepo: Repository<Message> | null,
+    @Optional() @InjectRepository(InternalState) private stateRepo: Repository<InternalState> | null,
     private analystAgent: AnalystAgent,
     private relationalAgent: RelationalAgent,
     private ethicsAgent: EthicsAgent,
@@ -37,6 +42,20 @@ export class VCTTEngineService {
     private configService: ConfigService,
   ) {
     this.max_repairs = parseInt(this.configService.get<string>('MAX_REPAIR_ITERATIONS', '3'));
+    
+    // Log database status
+    if (!this.convRepo || !this.msgRepo || !this.stateRepo) {
+      this.logger.warn('⚠️  Database repositories not available - running in stateless mode');
+    } else {
+      this.logger.log('✅ Database repositories initialized');
+    }
+  }
+
+  /**
+   * Check if database is available
+   */
+  private get hasDatabase(): boolean {
+    return !!(this.convRepo && this.msgRepo && this.stateRepo);
   }
 
   /**
@@ -45,17 +64,7 @@ export class VCTTEngineService {
   async startSession(userId: string, input: string): Promise<string> {
     this.logger.log(`Starting new session for user: ${userId}`);
 
-    // Create new conversation
-    const conv = this.convRepo.create({ user_id: userId });
-    await this.convRepo.save(conv);
-
-    // Save initial user message
-    const msg = this.msgRepo.create({
-      conversation_id: conv.id,
-      role: 'user',
-      content: input,
-    });
-    await this.msgRepo.save(msg);
+    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     // Initialize internal state with default values
     const initialState: StateData = {
@@ -70,15 +79,38 @@ export class VCTTEngineService {
       repair_count: 0,
     };
 
-    const state = this.stateRepo.create({
-      session_id: conv.id,
-      state: initialState,
-      updated_at: new Date(),
-    });
-    await this.stateRepo.save(state);
+    if (this.hasDatabase) {
+      // Create new conversation in database
+      const conv = this.convRepo!.create({ user_id: userId });
+      await this.convRepo!.save(conv);
 
-    this.logger.log(`Session created: ${conv.id}`);
-    return conv.id;
+      // Save initial user message
+      const msg = this.msgRepo!.create({
+        conversation_id: conv.id,
+        role: 'user',
+        content: input,
+      });
+      await this.msgRepo!.save(msg);
+
+      // Save initial state
+      const state = this.stateRepo!.create({
+        session_id: conv.id,
+        state: initialState,
+        updated_at: new Date(),
+      });
+      await this.stateRepo!.save(state);
+
+      this.logger.log(`Session created (DB): ${conv.id}`);
+      return conv.id;
+    } else {
+      // Use in-memory storage
+      this.inMemoryConversations.set(sessionId, { id: sessionId, user_id: userId });
+      this.inMemoryMessages.set(sessionId, [{ role: 'user', content: input, timestamp: new Date() }]);
+      this.inMemoryStates.set(sessionId, { session_id: sessionId, state: initialState, updated_at: new Date() });
+
+      this.logger.log(`Session created (memory): ${sessionId}`);
+      return sessionId;
+    }
   }
 
   /**
@@ -87,26 +119,43 @@ export class VCTTEngineService {
   async processStep(sessionId: string, input: string): Promise<any> {
     this.logger.log(`Processing step for session: ${sessionId}`);
 
-    // Load session state
-    const state = await this.stateRepo.findOne({ where: { session_id: sessionId } });
-    if (!state) {
-      throw new NotFoundException(`Session not found: ${sessionId}`);
+    let state: any;
+    let messages: any[];
+
+    if (this.hasDatabase) {
+      // Load from database
+      state = await this.stateRepo!.findOne({ where: { session_id: sessionId } });
+      if (!state) {
+        throw new NotFoundException(`Session not found: ${sessionId}`);
+      }
+
+      messages = await this.msgRepo!.find({
+        where: { conversation_id: sessionId },
+        order: { timestamp: 'ASC' },
+      });
+
+      // Save new user input
+      const userMsg = this.msgRepo!.create({
+        conversation_id: sessionId,
+        role: 'user',
+        content: input,
+      });
+      await this.msgRepo!.save(userMsg);
+      messages.push(userMsg);
+    } else {
+      // Load from memory
+      state = this.inMemoryStates.get(sessionId);
+      if (!state) {
+        throw new NotFoundException(`Session not found: ${sessionId}`);
+      }
+
+      messages = this.inMemoryMessages.get(sessionId) || [];
+      
+      // Add new user input
+      const userMsg = { role: 'user', content: input, timestamp: new Date() };
+      messages.push(userMsg);
+      this.inMemoryMessages.set(sessionId, messages);
     }
-
-    // Load conversation messages
-    const messages = await this.msgRepo.find({
-      where: { conversation_id: sessionId },
-      order: { timestamp: 'ASC' },
-    });
-
-    // Save new user input
-    const userMsg = this.msgRepo.create({
-      conversation_id: sessionId,
-      role: 'user',
-      content: input,
-    });
-    await this.msgRepo.save(userMsg);
-    messages.push(userMsg);
 
     // Reset repair count for new step
     state.state.repair_count = 0;
@@ -148,16 +197,25 @@ export class VCTTEngineService {
     const response = await this.synthesiserAgent.synthesize(messages, state);
 
     // Save assistant response
-    const assistantMsg = this.msgRepo.create({
-      conversation_id: sessionId,
-      role: 'assistant',
-      content: response,
-    });
-    await this.msgRepo.save(assistantMsg);
+    if (this.hasDatabase) {
+      const assistantMsg = this.msgRepo!.create({
+        conversation_id: sessionId,
+        role: 'assistant',
+        content: response,
+      });
+      await this.msgRepo!.save(assistantMsg);
 
-    // Update state timestamp and save
-    state.updated_at = new Date();
-    await this.stateRepo.save(state);
+      // Update state timestamp and save
+      state.updated_at = new Date();
+      await this.stateRepo!.save(state);
+    } else {
+      // Save to memory
+      messages.push({ role: 'assistant', content: response, timestamp: new Date() });
+      this.inMemoryMessages.set(sessionId, messages);
+      
+      state.updated_at = new Date();
+      this.inMemoryStates.set(sessionId, state);
+    }
 
     this.logger.log(`=== PIPELINE COMPLETE === τ=${state.state.trust_tau.toFixed(3)}, repairs=${state.state.repair_count}`);
 
@@ -179,32 +237,57 @@ export class VCTTEngineService {
   async getSession(sessionId: string): Promise<any> {
     this.logger.log(`Retrieving session: ${sessionId}`);
 
-    const conversation = await this.convRepo.findOne({
-      where: { id: sessionId },
-      relations: ['messages'],
-    });
+    if (this.hasDatabase) {
+      const conversation = await this.convRepo!.findOne({
+        where: { id: sessionId },
+        relations: ['messages'],
+      });
 
-    if (!conversation) {
-      throw new NotFoundException(`Session not found: ${sessionId}`);
+      if (!conversation) {
+        throw new NotFoundException(`Session not found: ${sessionId}`);
+      }
+
+      const state = await this.stateRepo!.findOne({
+        where: { session_id: sessionId },
+      });
+
+      return {
+        session_id: conversation.id,
+        user_id: conversation.user_id,
+        created_at: conversation.created_at,
+        messages: conversation.messages.map(m => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          timestamp: m.timestamp,
+        })),
+        internal_state: state?.state || null,
+        last_updated: state?.updated_at || null,
+      };
+    } else {
+      // Load from memory
+      const conversation = this.inMemoryConversations.get(sessionId);
+      if (!conversation) {
+        throw new NotFoundException(`Session not found: ${sessionId}`);
+      }
+
+      const messages = this.inMemoryMessages.get(sessionId) || [];
+      const state = this.inMemoryStates.get(sessionId);
+
+      return {
+        session_id: conversation.id,
+        user_id: conversation.user_id,
+        created_at: new Date(),
+        messages: messages.map((m, idx) => ({
+          id: idx,
+          role: m.role,
+          content: m.content,
+          timestamp: m.timestamp,
+        })),
+        internal_state: state?.state || null,
+        last_updated: state?.updated_at || null,
+      };
     }
-
-    const state = await this.stateRepo.findOne({
-      where: { session_id: sessionId },
-    });
-
-    return {
-      session_id: conversation.id,
-      user_id: conversation.user_id,
-      created_at: conversation.created_at,
-      messages: conversation.messages.map(m => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-        timestamp: m.timestamp,
-      })),
-      internal_state: state?.state || null,
-      last_updated: state?.updated_at || null,
-    };
   }
 
   /**
