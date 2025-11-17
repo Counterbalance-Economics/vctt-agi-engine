@@ -1,5 +1,5 @@
 
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Conversation } from '../entities/conversation.entity';
@@ -11,9 +11,9 @@ export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
 
   constructor(
-    @InjectRepository(Conversation) private convRepo: Repository<Conversation>,
-    @InjectRepository(Message) private msgRepo: Repository<Message>,
-    @InjectRepository(InternalState) private stateRepo: Repository<InternalState>,
+    @Optional() @InjectRepository(Conversation) private convRepo: Repository<Conversation> | null,
+    @Optional() @InjectRepository(Message) private msgRepo: Repository<Message> | null,
+    @Optional() @InjectRepository(InternalState) private stateRepo: Repository<InternalState> | null,
   ) {}
 
   /**

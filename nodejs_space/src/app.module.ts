@@ -28,18 +28,20 @@ import { InternalState } from './entities/internal-state.entity';
       envFilePath: '.env',
     }),
     
-    // TypeORM PostgreSQL Configuration
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      url: process.env.DATABASE_URL,
-      entities: [Conversation, Message, InternalState],
-      synchronize: true, // Auto-create tables (disable in production)
-      logging: process.env.NODE_ENV === 'development',
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-    }),
-    
-    // Feature modules with entities
-    TypeOrmModule.forFeature([Conversation, Message, InternalState]),
+    // TypeORM PostgreSQL Configuration - Only if DATABASE_URL is set
+    ...(process.env.DATABASE_URL
+      ? [
+          TypeOrmModule.forRoot({
+            type: 'postgres',
+            url: process.env.DATABASE_URL,
+            entities: [Conversation, Message, InternalState],
+            synchronize: true, // Auto-create tables (disable in production)
+            logging: process.env.NODE_ENV === 'development',
+            ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+          }),
+          TypeOrmModule.forFeature([Conversation, Message, InternalState]),
+        ]
+      : []),
   ],
   
   providers: [
