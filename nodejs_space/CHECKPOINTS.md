@@ -6,10 +6,20 @@ This project uses **Git tags** for checkpoint management instead of the platform
 
 ## Current Checkpoints
 
-### v1.0.0-phase1 (Current - DEPLOYED)
-- **Commit:** b089c73
+### v1.0.1-phase1-fixes (Current - DEPLOYED)
+- **Commit:** 4ac7897
 - **Date:** November 17, 2025
 - **Status:** ✅ Live on Render
+- **Critical Fixes:**
+  - ✅ VCTT self-awareness: System now knows its own identity (Virtual Counterfactual Trust Testing)
+  - ✅ Chat width fix: Prevents UI overflow that eclipsed state panel
+  - ✅ Prevents hallucination when asked "What is VCTT?"
+- **Upgrade from:** v1.0.0-phase1
+
+### v1.0.0-phase1 (Previous)
+- **Commit:** b089c73
+- **Date:** November 17, 2025
+- **Status:** ⚠️ Superseded by v1.0.1
 - **Features:**
   - ✅ 4 Agents: Analyst, Relational, Ethics, Synthesiser
   - ✅ 5 Modules: SIM, CAM, SRE, CTM, RIL
