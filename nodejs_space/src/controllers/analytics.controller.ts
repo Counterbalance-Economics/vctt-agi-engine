@@ -4,7 +4,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/
 import { AnalyticsService } from '../services/analytics.service';
 
 @ApiTags('analytics')
-@Controller('analytics')
+@Controller('api/v1/analytics')
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
