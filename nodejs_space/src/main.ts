@@ -44,17 +44,21 @@ async function bootstrap() {
   });
 
   const port = process.env.PORT || 8000;
-  await app.listen(port, '0.0.0.0');
-
+  const host = '0.0.0.0';
+  
+  // Start listening BEFORE any console logs
+  await app.listen(port, host);
+  
   const databaseStatus = process.env.DATABASE_URL ? '✅ Connected' : '⚠️  Disabled (no DATABASE_URL)';
   
+  // Log server startup
   console.log('');
   console.log('═══════════════════════════════════════════════════════════');
   console.log('  🧠 VCTT-AGI COHERENCE KERNEL - PHASE 1');
   console.log('═══════════════════════════════════════════════════════════');
-  console.log(`  🚀 Service running on: http://0.0.0.0:${port}`);
-  console.log(`  📚 Swagger UI: http://0.0.0.0:${port}/api`);
-  console.log(`  ❤️  Health Check: http://0.0.0.0:${port}/health`);
+  console.log(`  🚀 Service running on: http://${host}:${port}`);
+  console.log(`  📚 Swagger UI: http://${host}:${port}/api`);
+  console.log(`  ❤️  Health Check: http://${host}:${port}/health`);
   console.log(`  🗄️  Database: ${databaseStatus}`);
   console.log('═══════════════════════════════════════════════════════════');
   console.log('  Agents: Analyst | Relational | Ethics | Synthesiser');
@@ -62,6 +66,10 @@ async function bootstrap() {
   console.log('  Max Repairs: 3 | Trust Formula: τ = 1 - (0.4T + 0.3U + 0.3C)');
   console.log('═══════════════════════════════════════════════════════════');
   console.log('');
+  console.log(`✅ Server successfully started and listening on ${host}:${port}`);
 }
 
-bootstrap();
+bootstrap().catch((error) => {
+  console.error('❌ Fatal error during bootstrap:', error);
+  process.exit(1);
+});
