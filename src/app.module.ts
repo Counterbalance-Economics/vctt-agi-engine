@@ -26,47 +26,51 @@ import { RILModule } from './modules/ril.module';
       envFilePath: '.env',
     }),
     
-    // TypeORM configuration
-    TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
-        const databaseUrl = configService.get<string>('DATABASE_URL');
-        
-        if (databaseUrl) {
-          // Parse DATABASE_URL for hosted database
-          const url = new URL(databaseUrl);
+    // TypeORM configuration - conditional (only if DATABASE_URL exists)
+    ...(process.env.DATABASE_URL ? [
+      TypeOrmModule.forRootAsync({
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: (configService: ConfigService) => {
+          const databaseUrl = configService.get<string>('DATABASE_URL');
+          
+          if (databaseUrl) {
+            // Parse DATABASE_URL for hosted database
+            const url = new URL(databaseUrl);
+            return {
+              type: 'postgres' as const,
+              host: url.hostname,
+              port: parseInt(url.port) || 5432,
+              username: url.username,
+              password: url.password,
+              database: url.pathname.slice(1),
+              entities: [Conversation, Message, InternalState],
+              synchronize: true, // Auto-create tables (for Phase 1 simplicity)
+              logging: configService.get<string>('NODE_ENV') === 'development',
+              ssl: { rejectUnauthorized: false }, // For hosted databases
+            };
+          }
+          
+          // Fall back to individual env vars
           return {
             type: 'postgres' as const,
-            host: url.hostname,
-            port: parseInt(url.port) || 5432,
-            username: url.username,
-            password: url.password,
-            database: url.pathname.slice(1),
+            host: configService.get<string>('DATABASE_HOST', 'postgres'),
+            port: configService.get<number>('DATABASE_PORT', 5432),
+            username: configService.get<string>('DATABASE_USER', 'vctt'),
+            password: configService.get<string>('DATABASE_PASSWORD', 'secret'),
+            database: configService.get<string>('DATABASE_NAME', 'vctt_agi'),
             entities: [Conversation, Message, InternalState],
             synchronize: true, // Auto-create tables (for Phase 1 simplicity)
             logging: configService.get<string>('NODE_ENV') === 'development',
-            ssl: { rejectUnauthorized: false }, // For hosted databases
           };
-        }
-        
-        // Fall back to individual env vars
-        return {
-          type: 'postgres' as const,
-          host: configService.get<string>('DATABASE_HOST', 'postgres'),
-          port: configService.get<number>('DATABASE_PORT', 5432),
-          username: configService.get<string>('DATABASE_USER', 'vctt'),
-          password: configService.get<string>('DATABASE_PASSWORD', 'secret'),
-          database: configService.get<string>('DATABASE_NAME', 'vctt_agi'),
-          entities: [Conversation, Message, InternalState],
-          synchronize: true, // Auto-create tables (for Phase 1 simplicity)
-          logging: configService.get<string>('NODE_ENV') === 'development',
-        };
-      },
-    }),
+        },
+      })
+    ] : []),
     
-    // Feature repositories
-    TypeOrmModule.forFeature([Conversation, Message, InternalState]),
+    // Feature repositories - conditional (only if DATABASE_URL exists)
+    ...(process.env.DATABASE_URL ? [
+      TypeOrmModule.forFeature([Conversation, Message, InternalState])
+    ] : []),
   ],
   
   providers: [
