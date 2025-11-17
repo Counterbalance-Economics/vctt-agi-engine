@@ -46,13 +46,16 @@ async function bootstrap() {
   const port = process.env.PORT || 8000;
   await app.listen(port, '0.0.0.0');
 
+  const databaseStatus = process.env.DATABASE_URL ? '✅ Connected' : '⚠️  Disabled (no DATABASE_URL)';
+  
   console.log('');
   console.log('═══════════════════════════════════════════════════════════');
   console.log('  🧠 VCTT-AGI COHERENCE KERNEL - PHASE 1');
   console.log('═══════════════════════════════════════════════════════════');
-  console.log(`  🚀 Service running on: http://localhost:${port}`);
-  console.log(`  📚 Swagger UI: http://localhost:${port}/api`);
-  console.log(`  ❤️  Health Check: http://localhost:${port}/health`);
+  console.log(`  🚀 Service running on: http://0.0.0.0:${port}`);
+  console.log(`  📚 Swagger UI: http://0.0.0.0:${port}/api`);
+  console.log(`  ❤️  Health Check: http://0.0.0.0:${port}/health`);
+  console.log(`  🗄️  Database: ${databaseStatus}`);
   console.log('═══════════════════════════════════════════════════════════');
   console.log('  Agents: Analyst | Relational | Ethics | Synthesiser');
   console.log('  Modules: SIM | CAM | SRE | CTM | RIL');
