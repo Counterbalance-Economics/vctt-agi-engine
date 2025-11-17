@@ -22,10 +22,10 @@ export class StartSessionDto {
 
 export class ProcessStepDto {
   @ApiProperty({
-    description: 'Session ID (UUID)',
-    example: '550e8400-e29b-41d4-a716-446655440000',
+    description: 'Session ID',
+    example: 'session_1763364545847_al7cvpzvx',
   })
-  @IsUUID()
+  @IsString()
   @IsNotEmpty()
   session_id: string;
 
