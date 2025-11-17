@@ -10,7 +10,7 @@ import {
   SessionDetailsDto,
 } from '../dto/session.dto';
 
-@ApiTags('VCTT Session Management')
+@ApiTags('session')
 @Controller('api/v1/session')
 export class SessionController {
   constructor(private readonly engine: VCTTEngineService) {}

@@ -29,19 +29,27 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('VCTT-AGI Coherence Kernel')
     .setDescription(
-      'Phase 1: Full VCTT-AGI Engine with 4 Agents (Analyst, Relational, Ethics, Synthesiser) ' +
-      'and 5 Modules (SIM, CAM, SRE, CTM, RIL). Includes repair loop with max 3 iterations and trust metric calculation.'
+      'Phase 2: Full VCTT-AGI Engine with PostgreSQL, persistent memory, session history, ' +
+      'cross-session analytics, and trust metric visualization. Includes 4 Agents (Analyst, Relational, ' +
+      'Ethics, Synthesiser) and 5 Modules (SIM, CAM, SRE, CTM, RIL). Features repair loop with max 3 ' +
+      'iterations and trust metric calculation.'
     )
-    .setVersion('1.0.0')
-    .addTag('VCTT Session Management', 'Endpoints for managing conversation sessions')
-    .addTag('Health Check', 'Service health monitoring')
+    .setVersion('2.0.0')
+    .addTag('session', 'Session management and conversation endpoints')
+    .addTag('health', 'Service health monitoring')
+    .addTag('analytics', 'Session history, analytics, and cross-session patterns')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document, {
+  
+  // Setup Swagger at both /api and /api-docs
+  const swaggerOptions = {
     customSiteTitle: 'VCTT-AGI API Docs',
     customCss: '.swagger-ui .topbar { display: none }',
-  });
+  };
+  
+  SwaggerModule.setup('api', app, document, swaggerOptions);
+  SwaggerModule.setup('api-docs', app, document, swaggerOptions);
 
   const port = process.env.PORT || 8000;
   const host = '0.0.0.0';
