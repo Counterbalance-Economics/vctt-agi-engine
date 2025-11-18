@@ -52,7 +52,9 @@ Respond ONLY with valid JSON. No markdown, no explanations.`;
       const response = await this.llmService.generateCompletion(
         conversationHistory,
         systemPrompt,
-        0.5
+        0.5, // Moderate temperature for emotional nuance
+        'relational', // Use GPT-5.1 for emotional intelligence
+        false, // No MCP tools needed (pure reasoning)
       );
 
       const latency = Date.now() - startTime;

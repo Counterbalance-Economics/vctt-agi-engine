@@ -142,6 +142,8 @@ ${verificationContext}`;
         conversationHistory,
         systemPrompt,
         0.7, // Balanced temperature for natural conversation
+        'synthesiser', // Use Claude 3.5 Sonnet with MCP tools
+        true, // Enable MCP tools (web search, formatting, etc.)
       );
 
       const finalResponse = response.content || 

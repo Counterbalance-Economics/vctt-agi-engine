@@ -56,23 +56,30 @@ export class LLMService {
   private lastVerificationReset = Date.now();
 
   constructor() {
-    this.logger.log('LLM Service initialized with RouteLLM');
-    this.logger.log(`Primary model: ${LLMConfig.models.primary}`);
-    this.logger.log(`Fallback model: ${LLMConfig.models.fallback}`);
+    this.logger.log('LLM Service initialized with Hybrid Multi-Model Architecture');
+    this.logger.log(`Analyst: ${LLMConfig.models.analyst} (MCP enabled)`);
+    this.logger.log(`Relational: ${LLMConfig.models.relational}`);
+    this.logger.log(`Ethics: ${LLMConfig.models.ethics}`);
+    this.logger.log(`Synthesiser: ${LLMConfig.models.synthesiser} (MCP enabled)`);
+    this.logger.log(`Verification: ${LLMConfig.models.verification}`);
   }
 
   /**
-   * Generate a completion using the LLM
+   * Generate a completion using the LLM (with agent-specific model selection)
    * 
    * @param messages - Conversation messages
    * @param systemPrompt - Optional system prompt
    * @param temperature - Optional temperature override
+   * @param agentRole - Optional agent role for model selection ('analyst', 'relational', 'ethics', 'synthesiser')
+   * @param enableTools - Enable MCP tools for Claude agents (default: true)
    * @returns LLM response with metadata
    */
   async generateCompletion(
     messages: Message[],
     systemPrompt?: string,
     temperature?: number,
+    agentRole?: 'analyst' | 'relational' | 'ethics' | 'synthesiser',
+    enableTools = true,
   ): Promise<LLMResponse> {
     const startTime = Date.now();
     
@@ -91,17 +98,33 @@ export class LLMService {
       ? [{ role: 'system', content: systemPrompt }, ...messages]
       : messages;
     
-    // Try primary model first, then fallback
+    // Select model based on agent role (hybrid architecture)
+    const selectedModel = agentRole 
+      ? (LLMConfig.models as any)[agentRole] 
+      : LLMConfig.models.primary;
+    
+    // Get MCP tools if this is a Claude agent with tools enabled
+    // Only analyst and synthesiser have MCP tools configured
+    const tools = (enableTools && agentRole && (agentRole === 'analyst' || agentRole === 'synthesiser'))
+      ? (LLMConfig.mcpTools as any)[agentRole]
+      : undefined;
+    
+    if (tools && agentRole) {
+      this.logger.log(`🛠️ ${agentRole} using ${selectedModel} with ${tools.length} MCP tools`);
+    }
+    
+    // Try selected model first, then fallback
     let response: LLMResponse;
     try {
       response = await this.callLLM(
         fullMessages,
-        LLMConfig.models.primary,
+        selectedModel,
         temperature,
+        tools,
       );
     } catch (primaryError) {
       this.logger.warn(
-        `Primary model (${LLMConfig.models.primary}) failed: ${primaryError.message}`
+        `Primary model (${selectedModel}) failed: ${primaryError.message}`
       );
       this.logger.log(`Falling back to ${LLMConfig.models.fallback}`);
       
@@ -110,6 +133,7 @@ export class LLMService {
           fullMessages,
           LLMConfig.models.fallback,
           temperature,
+          undefined, // Don't use tools on fallback
         );
       } catch (fallbackError) {
         this.logger.error(
@@ -281,27 +305,37 @@ Be concise, accurate, and cite your sources when possible.`;
     messages: Message[],
     model: string,
     temperature?: number,
+    tools?: any[], // MCP tools for Claude
   ): Promise<LLMResponse> {
     let lastError: Error | null = null;
     
     for (let attempt = 0; attempt < LLMConfig.retry.maxRetries; attempt++) {
       try {
+        // Build request body with optional MCP tools
+        const requestBody: any = {
+          model,
+          messages,
+          temperature: temperature ?? LLMConfig.temperature,
+          max_tokens: LLMConfig.limits.maxTokensPerRequest,
+          top_p: LLMConfig.topP,
+          frequency_penalty: LLMConfig.frequencyPenalty,
+          presence_penalty: LLMConfig.presencePenalty,
+          stream: false,
+        };
+        
+        // Add tools if provided (for Claude MCP)
+        if (tools && tools.length > 0) {
+          requestBody.tools = tools;
+          requestBody.tool_choice = 'auto'; // Let model decide when to use tools
+        }
+        
         const response = await fetch(LLMConfig.baseUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${process.env.ABACUSAI_API_KEY}`,
           },
-          body: JSON.stringify({
-            model,
-            messages,
-            temperature: temperature ?? LLMConfig.temperature,
-            max_tokens: LLMConfig.limits.maxTokensPerRequest,
-            top_p: LLMConfig.topP,
-            frequency_penalty: LLMConfig.frequencyPenalty,
-            presence_penalty: LLMConfig.presencePenalty,
-            stream: false,
-          }),
+          body: JSON.stringify(requestBody),
         });
         
         if (!response.ok) {

@@ -2,10 +2,13 @@
 /**
  * LLM Configuration for VCTT-AGI Engine
  * 
- * Primary: GPT-4o (via Abacus RouteLLM)
- * Fallback: Claude 3.5 Sonnet
- * Verification: Grok (xAI) - Real-time fact-checking & web access
- * Budget: <$200/month for LLM calls
+ * HYBRID MULTI-MODEL ARCHITECTURE (Phase 3.5+)
+ * - Analyst: Claude 3.5 Sonnet (MCP for DB queries, calculations, APIs)
+ * - Relational: GPT-5.1 (emotional intelligence, no tools needed)
+ * - Ethics: GPT-5.1 (moral reasoning, lightweight)
+ * - Synthesiser: Claude 3.5 Sonnet (MCP for synthesis + tools) + Grok 4.1 (verification)
+ * 
+ * Budget: ~$250/month with MCP overhead
  */
 
 export const LLMConfig = {
@@ -15,11 +18,86 @@ export const LLMConfig = {
   // xAI Grok API endpoint
   grokBaseUrl: 'https://api.x.ai/v1/chat/completions',
   
-  // Model configuration
+  // HYBRID MODEL CONFIGURATION (Per-Agent)
   models: {
-    primary: 'gpt-5.1',          // OpenAI GPT-5.1 - newest flagship, optimized for agentic tasks
-    fallback: 'claude-3-5-sonnet-20241022', // Claude 3.5 Sonnet - reliable fallback
-    verification: 'grok-4.1',    // xAI Grok 4.1 (Nov 2025) - 3x fewer hallucinations, real-time verification
+    // Agent-specific models (leveraging strengths)
+    analyst: 'claude-3-5-sonnet-20241022',     // Claude MCP for data analysis + tools
+    relational: 'gpt-5.1',                      // GPT-5.1 for emotional nuance
+    ethics: 'gpt-5.1',                          // GPT-5.1 for moral reasoning
+    synthesiser: 'claude-3-5-sonnet-20241022',  // Claude MCP for synthesis + tools
+    
+    // Legacy/fallback models
+    primary: 'gpt-5.1',                         // Default for non-agent use
+    fallback: 'claude-3-5-sonnet-20241022',     // Fallback chain
+    verification: 'grok-4.1',                   // Grok for real-time verification
+  },
+  
+  // MCP Tool Configuration (for Claude agents)
+  mcpTools: {
+    analyst: [
+      {
+        type: 'function',
+        function: {
+          name: 'query_database',
+          description: 'Query PostgreSQL database for trust metrics, session history, and patterns',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'SQL query to execute' },
+              params: { type: 'array', description: 'Query parameters' },
+            },
+            required: ['query'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'calculate',
+          description: 'Execute mathematical calculations or code for analysis',
+          parameters: {
+            type: 'object',
+            properties: {
+              expression: { type: 'string', description: 'Math expression or code to execute' },
+              language: { type: 'string', enum: ['python', 'javascript'], description: 'Execution language' },
+            },
+            required: ['expression'],
+          },
+        },
+      },
+    ],
+    synthesiser: [
+      {
+        type: 'function',
+        function: {
+          name: 'web_search',
+          description: 'Search the web for current information (complement to Grok verification)',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'Search query' },
+              num_results: { type: 'number', description: 'Number of results (1-10)', default: 5 },
+            },
+            required: ['query'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'format_output',
+          description: 'Format output with markdown, code blocks, or structured data',
+          parameters: {
+            type: 'object',
+            properties: {
+              content: { type: 'string', description: 'Content to format' },
+              format: { type: 'string', enum: ['markdown', 'json', 'code'], description: 'Output format' },
+            },
+            required: ['content', 'format'],
+          },
+        },
+      },
+    ],
   },
   
   // Token limits and budgets

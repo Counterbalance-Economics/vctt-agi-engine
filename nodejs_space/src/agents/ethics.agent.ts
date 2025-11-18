@@ -59,7 +59,9 @@ Respond ONLY with valid JSON. No markdown, no explanations.`;
       const response = await this.llmService.generateCompletion(
         conversationHistory,
         systemPrompt,
-        0.2 // Low temperature for consistent ethical evaluation
+        0.2, // Low temperature for consistent ethical evaluation
+        'ethics', // Use GPT-5.1 for moral reasoning
+        false, // No MCP tools needed (pure reasoning)
       );
 
       const latency = Date.now() - startTime;

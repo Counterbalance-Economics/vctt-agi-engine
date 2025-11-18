@@ -51,6 +51,8 @@ Return ONLY valid JSON (no markdown, no extra text):
         conversationHistory,
         systemPrompt,
         0.3, // Low temperature for analytical consistency
+        'analyst', // Use Claude 3.5 Sonnet with MCP tools
+        true, // Enable MCP tools (DB queries, calculations)
       );
 
       let content = response.content.trim();
