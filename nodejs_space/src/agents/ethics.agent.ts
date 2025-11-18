@@ -1,68 +1,97 @@
 
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import OpenAI from 'openai';
 import { InternalState } from '../entities/internal-state.entity';
 import { Message } from '../entities/message.entity';
+import { LLMService } from '../services/llm.service';
 
 @Injectable()
 export class EthicsAgent {
   private readonly logger = new Logger(EthicsAgent.name);
-  private openai: OpenAI;
 
-  constructor(private configService: ConfigService) {
-    this.openai = new OpenAI({
-      apiKey: this.configService.get<string>('OPENAI_API_KEY'),
-    });
-  }
+  constructor(private llmService: LLMService) {}
 
   async analyze(messages: Message[], state: InternalState): Promise<void> {
-    this.logger.log('Running Ethics Agent - checking value alignment');
+    this.logger.log('🟣 Running Ethics Agent - checking value alignment');
 
     const conversationHistory = messages.map(m => ({
       role: m.role as 'user' | 'assistant' | 'system',
       content: m.content,
     }));
 
-    const systemPrompt = `You are the Ethics Agent in the VCTT-AGI Coherence Kernel.
-Your role is to check value alignment, detect potential harm, and assess ethical implications.
+    const systemPrompt = `You are the Ethics Agent in the VCTT-AGI Coherence Kernel (Phase 3).
 
-Analyze the conversation and provide:
-1. Ethical concern level (0.0-1.0): How concerning is the content ethically?
-2. Potential harms: List any potential harms identified
-3. Value alignment: Does this align with human values?
-4. Recommendations: Any ethical guardrails needed?
+**Your Role:** Monitor value alignment, detect potential harms, and ensure ethical coherence in AI responses.
 
-Return JSON format:
+**Context:**
+- This is a multi-agent AGI system built by Counterbalance Economics
+- VCTT = Virtual Counterfactual Trust Testing
+- You work alongside Analyst (logic), Relational (emotions), and Synthesiser (user response)
+- Your insights help maintain trust (τ) and can increase tension if concerns are detected
+
+**Task:** Analyze the conversation for ethical implications and value alignment.
+
+**Return Format (JSON ONLY, no markdown):**
 {
-  "concern_level": <0.0-1.0>,
-  "potential_harms": ["harm1", "harm2"],
+  "concern_level": <number 0.0-1.0>,
+  "potential_harms": ["harm1", "harm2", "..."],
   "value_aligned": <boolean>,
-  "recommendations": "<text>"
-}`;
+  "recommendations": "<brief text or 'none'>"
+}
 
+**Guidelines:**
+- concern_level: 0.0 = no concerns, 1.0 = severe ethical issues
+- potential_harms: specific risks identified (e.g., "misinformation", "bias", "manipulation")
+- value_aligned: does the conversation align with human values and safety?
+- recommendations: any guardrails or adjustments needed (be concise)
+
+**Common concerns to watch for:**
+- Harmful content (violence, hate speech, illegal activities)
+- Misinformation or deception
+- Privacy violations
+- Bias or discrimination
+- Manipulation or coercion
+
+Respond ONLY with valid JSON. No markdown, no explanations.`;
+
+    const startTime = Date.now();
+    
     try {
-      const response = await this.openai.chat.completions.create({
-        model: this.configService.get<string>('OPENAI_MODEL', 'gpt-4'),
-        temperature: 0.2,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...conversationHistory,
-        ],
-      });
+      const response = await this.llmService.generateCompletion(
+        conversationHistory,
+        systemPrompt,
+        0.2 // Low temperature for consistent ethical evaluation
+      );
 
-      const content = response.choices[0]?.message?.content || '{}';
+      const latency = Date.now() - startTime;
+
+      // Parse JSON response (strip markdown if present)
+      let content = response.content;
+      if (content.includes('```json')) {
+        content = content.replace(/```json\n/g, '').replace(/```/g, '');
+      }
       const analysis = JSON.parse(content);
 
       // Ethics agent can increase tension if concerns are detected
       if (analysis.concern_level > 0.5) {
         state.state.sim.tension = Math.min(state.state.sim.tension + 0.2, 1.0);
+        this.logger.warn(
+          `⚠️ Ethical concerns detected! ` +
+          `concern_level: ${analysis.concern_level.toFixed(3)}, ` +
+          `harms: ${analysis.potential_harms.join(', ')}`
+        );
       }
       
-      this.logger.log(`Ethics complete - concern_level: ${analysis.concern_level?.toFixed(3) || '0.000'}, aligned: ${analysis.value_aligned}`);
+      this.logger.log(
+        `✅ Ethics complete - ` +
+        `concern_level: ${analysis.concern_level?.toFixed(3) || '0.000'}, ` +
+        `aligned: ${analysis.value_aligned}, ` +
+        `cost: $${response.cost.toFixed(4)}, ` +
+        `latency: ${latency}ms`
+      );
     } catch (error) {
-      this.logger.error(`Ethics agent error: ${error.message}`);
+      this.logger.error(`❌ Ethics agent error: ${error.message}`);
       // Ethics agent silently monitors - no state change on error
+      this.logger.warn(`⚠️ Ethics check failed - proceeding with caution`);
     }
   }
 }
