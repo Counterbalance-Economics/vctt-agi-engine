@@ -57,10 +57,10 @@ export class LLMService {
 
   constructor() {
     this.logger.log('LLM Service initialized with Hybrid Multi-Model Architecture');
-    this.logger.log(`Analyst: ${LLMConfig.models.analyst} (MCP enabled)`);
+    this.logger.log(`Analyst: ${LLMConfig.models.analyst || 'RouteLLM auto-pick (Claude)'} (MCP enabled)`);
     this.logger.log(`Relational: ${LLMConfig.models.relational}`);
     this.logger.log(`Ethics: ${LLMConfig.models.ethics}`);
-    this.logger.log(`Synthesiser: ${LLMConfig.models.synthesiser} (MCP enabled)`);
+    this.logger.log(`Synthesiser: ${LLMConfig.models.synthesiser || 'RouteLLM auto-pick (Claude)'} (MCP enabled)`);
     this.logger.log(`Verification: ${LLMConfig.models.verification}`);
   }
 
@@ -110,7 +110,8 @@ export class LLMService {
       : undefined;
     
     if (tools && agentRole) {
-      this.logger.log(`🛠️ ${agentRole} using ${selectedModel} with ${tools.length} MCP tools`);
+      const modelName = selectedModel || 'RouteLLM auto-pick (Claude)';
+      this.logger.log(`🛠️ ${agentRole} using ${modelName} with ${tools.length} MCP tools`);
     }
     
     // Try selected model first, then fallback
