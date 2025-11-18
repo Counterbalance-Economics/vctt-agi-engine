@@ -17,7 +17,7 @@ export const LLMConfig = {
   
   // Model configuration
   models: {
-    primary: 'gpt-4o',           // OpenAI GPT-4o - best reasoning
+    primary: 'gpt-5.1',          // OpenAI GPT-5.1 - newest flagship, optimized for agentic tasks
     fallback: 'claude-3-5-sonnet-20241022', // Claude 3.5 Sonnet - reliable fallback
     verification: 'grok-4.1',    // xAI Grok 4.1 (Nov 2025) - 3x fewer hallucinations, real-time verification
   },
@@ -45,6 +45,10 @@ export const LLMConfig = {
   
   // Cost tracking (approximate, in USD)
   costs: {
+    'gpt-5.1': {
+      inputPer1k: 0.0025,        // $2.50 per 1M input tokens (similar to gpt-4o)
+      outputPer1k: 0.010,        // $10.00 per 1M output tokens
+    },
     'gpt-4o': {
       inputPer1k: 0.0025,        // $2.50 per 1M input tokens
       outputPer1k: 0.010,        // $10.00 per 1M output tokens
