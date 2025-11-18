@@ -26,6 +26,12 @@ interface UsageStats {
   modelBreakdown: Record<string, { calls: number; tokens: number; cost: number }>;
 }
 
+interface VerificationOptions {
+  enableWebSearch?: boolean;
+  enableXSearch?: boolean;
+  context?: string; // Additional context for verification
+}
+
 /**
  * LLM Service - Handles all LLM API interactions
  * 
@@ -46,6 +52,8 @@ export class LLMService {
   };
   private dailyCost = 0;
   private lastResetDate = new Date().toDateString();
+  private verificationsThisHour = 0;
+  private lastVerificationReset = Date.now();
 
   constructor() {
     this.logger.log('LLM Service initialized with RouteLLM');
@@ -124,6 +132,146 @@ export class LLMService {
     }
     
     return response;
+  }
+
+  /**
+   * Generate a verification using Grok (xAI)
+   * 
+   * This method uses Grok's real-time web search and fact-checking capabilities
+   * to verify information, especially useful for low-trust scenarios.
+   * 
+   * @param query - The query or statement to verify
+   * @param options - Verification options (web search, X search, context)
+   * @returns Verification response from Grok
+   */
+  async verifyWithGrok(
+    query: string,
+    options: VerificationOptions = {},
+  ): Promise<LLMResponse> {
+    const startTime = Date.now();
+    
+    // Reset hourly verification count if needed
+    this.resetVerificationCountIfNeeded();
+    
+    // Check hourly verification limit
+    if (this.verificationsThisHour >= LLMConfig.verification.maxVerificationsPerHour) {
+      throw new Error(
+        `Hourly verification limit exceeded: ${this.verificationsThisHour}/${LLMConfig.verification.maxVerificationsPerHour}`
+      );
+    }
+    
+    // Check daily budget
+    if (this.dailyCost >= LLMConfig.limits.dailyBudgetUSD) {
+      throw new Error(
+        `Daily LLM budget exceeded: $${this.dailyCost.toFixed(2)}/$${LLMConfig.limits.dailyBudgetUSD}`
+      );
+    }
+    
+    // Prepare verification prompt
+    const systemPrompt = `You are Grok, a truth-seeking AI assistant with real-time web access. 
+Your role is to verify information, fact-check claims, and provide accurate, up-to-date data.
+${options.enableWebSearch ? 'Use web search to find current information.' : ''}
+${options.enableXSearch ? 'Use X (Twitter) search for recent discussions and sentiment.' : ''}
+${options.context ? `\nContext: ${options.context}` : ''}
+
+Be concise, accurate, and cite your sources when possible.`;
+    
+    const messages: Message[] = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: query },
+    ];
+    
+    this.logger.log(`🔍 Grok verification request: "${query.substring(0, 100)}..."`);
+    
+    // Call Grok API
+    const response = await this.callGrokAPI(messages);
+    response.latencyMs = Date.now() - startTime;
+    
+    // Track usage
+    this.trackUsage(response);
+    this.verificationsThisHour++;
+    
+    this.logger.log(
+      `✅ Grok verification complete: cost=$${response.cost.toFixed(4)}, latency=${response.latencyMs}ms`
+    );
+    
+    return response;
+  }
+
+  /**
+   * Call the Grok API specifically
+   */
+  private async callGrokAPI(messages: Message[]): Promise<LLMResponse> {
+    try {
+      const response = await fetch(LLMConfig.grokBaseUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.XAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: LLMConfig.models.verification,
+          messages,
+          temperature: 0.3, // Lower temperature for factual verification
+          max_tokens: 2000,
+          stream: false,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Grok API error (${response.status}): ${errorText}`);
+      }
+      
+      const data = await response.json();
+      
+      const content = data.choices?.[0]?.message?.content;
+      if (!content) {
+        throw new Error('Invalid Grok response: missing content');
+      }
+      
+      const inputTokens = data.usage?.prompt_tokens ?? 0;
+      const outputTokens = data.usage?.completion_tokens ?? 0;
+      const totalTokens = data.usage?.total_tokens ?? inputTokens + outputTokens;
+      
+      // Calculate cost
+      const modelCosts = LLMConfig.costs['grok-beta'];
+      const cost = 
+        (inputTokens / 1000) * modelCosts.inputPer1k +
+        (outputTokens / 1000) * modelCosts.outputPer1k;
+      
+      return {
+        content,
+        model: LLMConfig.models.verification,
+        tokensUsed: {
+          input: inputTokens,
+          output: outputTokens,
+          total: totalTokens,
+        },
+        cost,
+        latencyMs: 0,
+      };
+      
+    } catch (error) {
+      this.logger.error(`Grok API call failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Reset hourly verification count if an hour has passed
+   */
+  private resetVerificationCountIfNeeded(): void {
+    const now = Date.now();
+    const hourInMs = 60 * 60 * 1000;
+    
+    if (now - this.lastVerificationReset >= hourInMs) {
+      this.logger.log(
+        `Hourly verification reset: Used ${this.verificationsThisHour} verifications last hour`
+      );
+      this.verificationsThisHour = 0;
+      this.lastVerificationReset = now;
+    }
   }
 
   /**

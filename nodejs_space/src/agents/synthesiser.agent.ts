@@ -85,14 +85,50 @@ Generate a coherent, thoughtful, and **COMPREHENSIVE** response that:
         0.7, // Balanced temperature for natural conversation
       );
 
-      const finalResponse = response.content || 
+      let finalResponse = response.content || 
         `I understand your query. (τ=${state.state.trust_tau.toFixed(3)}, repairs=${state.state.repair_count})`;
+
+      // 🔍 GROK VERIFICATION: If trust is low, verify key facts
+      let verificationUsed = false;
+      if (state.state.trust_tau < 0.8 && messages.length > 0) {
+        const lastUserMessage = messages.filter(m => m.role === 'user').slice(-1)[0];
+        
+        // Check if the query seems to need real-time verification
+        const needsVerification = this.checkIfNeedsVerification(lastUserMessage?.content || '');
+        
+        if (needsVerification) {
+          try {
+            this.logger.log(`🔍 Low trust detected (τ=${state.state.trust_tau.toFixed(3)}), invoking Grok for verification...`);
+            
+            const verificationQuery = `Verify the following information and provide accurate, up-to-date facts:\n\nUser query: ${lastUserMessage.content}\n\nResponse to verify: ${finalResponse.substring(0, 500)}`;
+            
+            const verification = await this.llmService.verifyWithGrok(
+              verificationQuery,
+              {
+                enableWebSearch: true,
+                enableXSearch: false, // Only enable if needed
+                context: `Trust level: ${state.state.trust_tau.toFixed(3)}, Contradiction: ${state.state.contradiction.toFixed(3)}`,
+              }
+            );
+            
+            // Append verification results
+            finalResponse = `${finalResponse}\n\n---\n**🔍 Verification (Grok):** ${verification.content}`;
+            verificationUsed = true;
+            
+            this.logger.log(`✅ Grok verification added - cost: $${verification.cost.toFixed(4)}`);
+          } catch (verifyError) {
+            this.logger.warn(`⚠️ Grok verification failed: ${verifyError.message}`);
+            // Continue without verification - don't break the response
+          }
+        }
+      }
 
       this.logger.log(
         `✅ Synthesiser complete - length: ${finalResponse.length} chars, ` +
         `cost: $${response.cost.toFixed(4)}, ` +
         `latency: ${response.latencyMs}ms, ` +
-        `model: ${response.model}`
+        `model: ${response.model}` +
+        `${verificationUsed ? ' [+GROK VERIFICATION]' : ''}`
       );
       
       return {
@@ -117,5 +153,24 @@ Generate a coherent, thoughtful, and **COMPREHENSIVE** response that:
         metadata: undefined,
       };
     }
+  }
+
+  /**
+   * Check if a query needs real-time verification from Grok
+   * Triggers for queries about current events, facts, recent news, etc.
+   */
+  private checkIfNeedsVerification(query: string): boolean {
+    const lowerQuery = query.toLowerCase();
+    
+    // Keywords that suggest need for real-time verification
+    const verificationKeywords = [
+      'latest', 'recent', 'current', 'today', 'now', 'update',
+      'news', 'happening', 'what is', 'who is', 'when did',
+      'fact check', 'verify', 'true', 'false', 'accurate',
+      'statistics', 'data', 'research', 'study', 'report',
+      '2024', '2025', 'this year', 'this month',
+    ];
+    
+    return verificationKeywords.some(keyword => lowerQuery.includes(keyword));
   }
 }

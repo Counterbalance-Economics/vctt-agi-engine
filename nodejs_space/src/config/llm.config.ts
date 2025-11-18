@@ -4,6 +4,7 @@
  * 
  * Primary: GPT-4o (via Abacus RouteLLM)
  * Fallback: Claude 3.5 Sonnet
+ * Verification: Grok (xAI) - Real-time fact-checking & web access
  * Budget: <$200/month for LLM calls
  */
 
@@ -11,10 +12,14 @@ export const LLMConfig = {
   // Abacus.AI RouteLLM endpoint
   baseUrl: 'https://apps.abacus.ai/v1/chat/completions',
   
+  // xAI Grok API endpoint
+  grokBaseUrl: 'https://api.x.ai/v1/chat/completions',
+  
   // Model configuration
   models: {
     primary: 'gpt-4o',           // OpenAI GPT-4o - best reasoning
     fallback: 'claude-3-5-sonnet-20241022', // Claude 3.5 Sonnet - reliable fallback
+    verification: 'grok-beta',   // xAI Grok - real-time verification & web search
   },
   
   // Token limits and budgets
@@ -48,5 +53,17 @@ export const LLMConfig = {
       inputPer1k: 0.003,         // $3.00 per 1M input tokens
       outputPer1k: 0.015,        // $15.00 per 1M output tokens
     },
+    'grok-beta': {
+      inputPer1k: 0.005,         // $5.00 per 1M input tokens (xAI pricing)
+      outputPer1k: 0.015,        // $15.00 per 1M output tokens
+    },
+  },
+  
+  // Verification settings
+  verification: {
+    enableWebSearch: true,       // Enable Grok's web search capabilities
+    enableXSearch: true,         // Enable X (Twitter) semantic search
+    minTrustForVerification: 0.8, // Only verify if trust τ < 0.8
+    maxVerificationsPerHour: 20,  // Limit verification calls (cost control)
   },
 };
