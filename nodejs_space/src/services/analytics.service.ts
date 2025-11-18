@@ -22,7 +22,7 @@ export class AnalyticsService {
   async getSessions(userId?: string, limit: number = 50) {
     this.logger.log(`Getting sessions${userId ? ` for user ${userId}` : ''}`);
 
-    const queryBuilder = this.convRepo.createQueryBuilder('conversation')
+    const queryBuilder = this.convRepo!.createQueryBuilder('conversation')
       .leftJoinAndSelect('conversation.messages', 'message')
       .orderBy('conversation.created_at', 'DESC')
       .take(limit);
@@ -36,7 +36,7 @@ export class AnalyticsService {
     return {
       total: conversations.length,
       sessions: await Promise.all(conversations.map(async (conv) => {
-        const state = await this.stateRepo.findOne({ 
+        const state = await this.stateRepo!.findOne({ 
           where: { session_id: conv.id } 
         });
 
@@ -62,7 +62,7 @@ export class AnalyticsService {
   async getSessionHistory(sessionId: string) {
     this.logger.log(`Getting session history: ${sessionId}`);
 
-    const conversation = await this.convRepo.findOne({
+    const conversation = await this.convRepo!.findOne({
       where: { id: sessionId },
       relations: ['messages'],
     });
@@ -71,7 +71,7 @@ export class AnalyticsService {
       throw new NotFoundException(`Session not found: ${sessionId}`);
     }
 
-    const state = await this.stateRepo.findOne({
+    const state = await this.stateRepo!.findOne({
       where: { session_id: sessionId },
     });
 
@@ -97,7 +97,7 @@ export class AnalyticsService {
     this.logger.log('Getting trust metrics');
 
     // Get states
-    let stateQuery = this.stateRepo.createQueryBuilder('state')
+    let stateQuery = this.stateRepo!.createQueryBuilder('state')
       .orderBy('state.updated_at', 'ASC');
 
     if (sessionId) {
@@ -111,7 +111,7 @@ export class AnalyticsService {
     if (userId || !sessionId) {
       const sessionIds = states.map(s => s.session_id);
       if (sessionIds.length > 0) {
-        let convQuery = this.convRepo.createQueryBuilder('conv')
+        let convQuery = this.convRepo!.createQueryBuilder('conv')
           .where('conv.id IN (:...sessionIds)', { sessionIds });
 
         if (userId) {
@@ -158,7 +158,7 @@ export class AnalyticsService {
   async getAggregateAnalytics(userId?: string) {
     this.logger.log(`Getting aggregate analytics${userId ? ` for user ${userId}` : ''}`);
 
-    let query = this.convRepo.createQueryBuilder('conversation')
+    let query = this.convRepo!.createQueryBuilder('conversation')
       .leftJoinAndSelect('conversation.messages', 'message');
 
     if (userId) {
@@ -173,14 +173,14 @@ export class AnalyticsService {
       // Filter states by conversations for this user
       const sessionIds = conversations.map(c => c.id);
       if (sessionIds.length > 0) {
-        states = await this.stateRepo.createQueryBuilder('state')
+        states = await this.stateRepo!.createQueryBuilder('state')
           .where('state.session_id IN (:...sessionIds)', { sessionIds })
           .getMany();
       } else {
         states = [];
       }
     } else {
-      states = await this.stateRepo.find();
+      states = await this.stateRepo!.find();
     }
 
     // Calculate aggregates
@@ -232,7 +232,7 @@ export class AnalyticsService {
   async getCrossSessionPatterns(userId?: string) {
     this.logger.log('Analyzing cross-session patterns');
 
-    let query = this.convRepo.createQueryBuilder('conversation')
+    let query = this.convRepo!.createQueryBuilder('conversation')
       .leftJoinAndSelect('conversation.messages', 'message')
       .orderBy('conversation.created_at', 'ASC');
 
@@ -250,7 +250,7 @@ export class AnalyticsService {
       };
     }
 
-    const states = await this.stateRepo.find();
+    const states = await this.stateRepo!.find();
     const stateMap = new Map(states.map(s => [s.session_id, s]));
 
     // Analyze patterns
