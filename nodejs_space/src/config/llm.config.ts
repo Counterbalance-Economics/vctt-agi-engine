@@ -21,15 +21,15 @@ export const LLMConfig = {
   // HYBRID MODEL CONFIGURATION (Per-Agent)
   models: {
     // Agent-specific models (leveraging strengths)
-    analyst: 'claude-3-5-sonnet-20241022',     // Claude MCP for data analysis + tools
-    relational: 'gpt-5.1',                      // GPT-5.1 for emotional nuance
-    ethics: 'gpt-5.1',                          // GPT-5.1 for moral reasoning
-    synthesiser: 'claude-3-5-sonnet-20241022',  // Claude MCP for synthesis + tools
+    analyst: 'claude',                          // Claude MCP for data analysis + tools (RouteLLM naming)
+    relational: 'gpt-5',                        // GPT-5 for emotional nuance
+    ethics: 'gpt-5',                            // GPT-5 for moral reasoning
+    synthesiser: 'claude',                      // Claude MCP for synthesis + tools (RouteLLM naming)
     
     // Legacy/fallback models
-    primary: 'gpt-5.1',                         // Default for non-agent use
-    fallback: 'claude-3-5-sonnet-20241022',     // Fallback chain
-    verification: 'grok-4.1',                   // Grok for real-time verification
+    primary: 'gpt-5',                           // Default for non-agent use
+    fallback: 'claude',                         // Fallback chain
+    verification: 'grok-3',                     // Grok-3 for real-time verification (free tier)
   },
   
   // MCP Tool Configuration (for Claude agents)
@@ -123,20 +123,32 @@ export const LLMConfig = {
   
   // Cost tracking (approximate, in USD)
   costs: {
+    'gpt-5': {
+      inputPer1k: 0.0025,        // $2.50 per 1M input tokens
+      outputPer1k: 0.010,        // $10.00 per 1M output tokens
+    },
     'gpt-5.1': {
-      inputPer1k: 0.0025,        // $2.50 per 1M input tokens (similar to gpt-4o)
+      inputPer1k: 0.0025,        // $2.50 per 1M input tokens (legacy)
       outputPer1k: 0.010,        // $10.00 per 1M output tokens
     },
     'gpt-4o': {
       inputPer1k: 0.0025,        // $2.50 per 1M input tokens
       outputPer1k: 0.010,        // $10.00 per 1M output tokens
     },
-    'claude-3-5-sonnet-20241022': {
+    'claude': {
       inputPer1k: 0.003,         // $3.00 per 1M input tokens
       outputPer1k: 0.015,        // $15.00 per 1M output tokens
     },
-    'grok-4.1': {
+    'claude-3-5-sonnet-20241022': {
+      inputPer1k: 0.003,         // $3.00 per 1M input tokens (legacy)
+      outputPer1k: 0.015,        // $15.00 per 1M output tokens
+    },
+    'grok-3': {
       inputPer1k: 0.005,         // $5.00 per 1M input tokens (xAI pricing)
+      outputPer1k: 0.015,        // $15.00 per 1M output tokens
+    },
+    'grok-4.1': {
+      inputPer1k: 0.005,         // $5.00 per 1M input tokens (legacy)
       outputPer1k: 0.015,        // $15.00 per 1M output tokens
     },
   },
