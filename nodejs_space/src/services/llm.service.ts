@@ -192,14 +192,26 @@ export class LLMService {
       );
     }
     
-    // Prepare verification prompt
+    // Prepare verification prompt with STRICT JSON enforcement
     const systemPrompt = `You are Grok, a truth-seeking AI assistant with real-time web access. 
 Your role is to verify information, fact-check claims, and provide accurate, up-to-date data.
 ${options.enableWebSearch ? 'Use web search to find current information.' : ''}
 ${options.enableXSearch ? 'Use X (Twitter) search for recent discussions and sentiment.' : ''}
 ${options.context ? `\nContext: ${options.context}` : ''}
 
-Be concise, accurate, and cite your sources when possible.`;
+CRITICAL: You MUST respond with valid JSON only. No prose, no explanations, no markdown.
+Format your response as:
+{
+  "content": "Your verified answer with current facts (November 2025)",
+  "verified_facts": ["Fact 1", "Fact 2"],
+  "sources": ["source1.com", "source2.com"],
+  "confidence": 0.0-1.0
+}
+
+Example for "Who is president?":
+{"content":"Donald Trump is the 47th President since Jan 20, 2025","verified_facts":["Election 2024 win: 312 electoral votes","Inauguration: January 20, 2025","VP: J.D. Vance"],"sources":["whitehouse.gov"],"confidence":0.95}
+
+Start your response with { and end with }. NO OTHER TEXT.`;
     
     const messages: Message[] = [
       { role: 'system', content: systemPrompt },
@@ -240,6 +252,7 @@ Be concise, accurate, and cite your sources when possible.`;
           temperature: 0.3, // Lower temperature for factual verification
           max_tokens: 2000,
           stream: false,
+          response_format: { type: "json_object" }, // Force JSON mode
         }),
       });
       

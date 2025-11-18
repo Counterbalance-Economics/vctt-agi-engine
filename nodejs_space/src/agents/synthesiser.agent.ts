@@ -54,20 +54,42 @@ Respond with verified facts only.`;
         }
       );
       
+      // Parse JSON response from Grok
+      let verifiedData: any;
+      try {
+        verifiedData = JSON.parse(verification.content);
+      } catch (parseError) {
+        this.logger.error(`❌ Failed to parse Grok JSON response: ${parseError.message}`);
+        this.logger.error(`   Raw response: ${verification.content.substring(0, 200)}...`);
+        // Fallback: use raw content if JSON parsing fails
+        verifiedData = {
+          content: verification.content,
+          verified_facts: [],
+          sources: [],
+          confidence: 0.5
+        };
+      }
+      
       // Analyze if there are discrepancies (enhanced detection)
       const discrepancyKeywords = [
         'incorrect', 'outdated', 'inaccurate', 'wrong', 'false',
         'actually', 'however', 'but', 'not', 'changed', 'different',
         'as of', 'since', 'currently', 'now', 'updated', 'no longer'
       ];
+      const contentToCheck = verifiedData.content || verification.content;
       const hasDiscrepancy = discrepancyKeywords.some(keyword => 
-        verification.content.toLowerCase().includes(keyword)
+        contentToCheck.toLowerCase().includes(keyword)
       );
       
       this.logger.log(`✅ Early verification complete - discrepancy: ${hasDiscrepancy}`);
+      this.logger.log(`   Verified facts: ${verifiedData.verified_facts?.join(', ') || 'none'}`);
+      this.logger.log(`   Confidence: ${verifiedData.confidence || 'unknown'}`);
       
       return {
-        content: verification.content,
+        content: contentToCheck,
+        verified_facts: verifiedData.verified_facts || [],
+        sources: verifiedData.sources || [],
+        confidence: verifiedData.confidence || 0.5,
         cost: verification.cost,
         latencyMs: verification.latencyMs,
         hasDiscrepancy,
@@ -95,17 +117,31 @@ Respond with verified facts only.`;
     // Build system prompt with optional Grok verification data
     let verificationContext = '';
     if (grokVerification) {
+      // Format verified facts if available
+      const verifiedFactsList = grokVerification.verified_facts?.length > 0
+        ? `\n**Verified Facts:**\n${grokVerification.verified_facts.map((f: string) => `  • ${f}`).join('\n')}`
+        : '';
+      
+      const sourcesList = grokVerification.sources?.length > 0
+        ? `\n**Sources:** ${grokVerification.sources.join(', ')}`
+        : '';
+      
       if (grokVerification.hasDiscrepancy) {
         // CRITICAL: If Grok found a discrepancy, its facts are AUTHORITATIVE
         verificationContext = `\n\n🚨 **REAL-TIME VERIFICATION (Grok) - DISCREPANCY DETECTED:**
-${grokVerification.content}
+${grokVerification.content}${verifiedFactsList}${sourcesList}
+**Confidence:** ${(grokVerification.confidence * 100).toFixed(0)}%
 
 **CRITICAL INSTRUCTION:** Grok has detected a factual discrepancy. You MUST use Grok's verified facts as the authoritative source.
-DO NOT rely on your training data cutoff. Grok has real-time access to current information.
+DO NOT rely on your training data cutoff. Grok has real-time access to current information (November 2025).
 If Grok says "Trump is president", that is the correct answer, regardless of your training data.
 Integrate this verified information naturally into your response.`;
       } else {
-        verificationContext = `\n\n🔍 **REAL-TIME VERIFICATION (Grok):**\n${grokVerification.content}\n\nIntegrate this verified information naturally into your response. Don't append it separately.`;
+        verificationContext = `\n\n🔍 **REAL-TIME VERIFICATION (Grok):**
+${grokVerification.content}${verifiedFactsList}${sourcesList}
+**Confidence:** ${(grokVerification.confidence * 100).toFixed(0)}%
+
+Integrate this verified information naturally into your response. Don't append it separately.`;
       }
     }
 
