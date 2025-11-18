@@ -6,9 +6,11 @@ import { VCTTEngineService } from './services/vctt-engine.service';
 import { AnalyticsService } from './services/analytics.service';
 import { LLMService } from './services/llm.service';
 import { LLMCascadeService } from './services/llm-cascade.service';
+import { LLMCommitteeService } from './services/llm-committee.service';
 import { SessionController } from './controllers/session.controller';
 import { HealthController } from './controllers/health.controller';
 import { AnalyticsController } from './controllers/analytics.controller';
+import { LLMCommitteeController } from './controllers/llm-committee.controller';
 import { AnalystAgent } from './agents/analyst.agent';
 import { RelationalAgent } from './agents/relational.agent';
 import { EthicsAgent } from './agents/ethics.agent';
@@ -23,6 +25,7 @@ import { CostLimitGuard } from './guards/cost-limit.guard';
 import { Conversation } from './entities/conversation.entity';
 import { Message } from './entities/message.entity';
 import { InternalState } from './entities/internal-state.entity';
+import { LLMContribution } from './entities/llm-contribution.entity';
 
 @Module({
   imports: [
@@ -38,12 +41,12 @@ import { InternalState } from './entities/internal-state.entity';
           TypeOrmModule.forRoot({
             type: 'postgres',
             url: process.env.DATABASE_URL,
-            entities: [Conversation, Message, InternalState],
+            entities: [Conversation, Message, InternalState, LLMContribution],
             synchronize: true, // Auto-create tables (disable in production)
             logging: process.env.NODE_ENV === 'development',
             ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
           }),
-          TypeOrmModule.forFeature([Conversation, Message, InternalState]),
+          TypeOrmModule.forFeature([Conversation, Message, InternalState, LLMContribution]),
         ]
       : []),
   ],
@@ -54,6 +57,7 @@ import { InternalState } from './entities/internal-state.entity';
     AnalyticsService,
     LLMService,
     LLMCascadeService,
+    LLMCommitteeService,
     
     // Agents
     AnalystAgent,
@@ -77,6 +81,7 @@ import { InternalState } from './entities/internal-state.entity';
     SessionController,
     HealthController,
     AnalyticsController,
+    LLMCommitteeController,
   ],
 })
 export class AppModule {}

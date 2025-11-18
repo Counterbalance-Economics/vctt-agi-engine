@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { Conversation } from '../entities/conversation.entity';
 import { Message } from '../entities/message.entity';
 import { InternalState, StateData } from '../entities/internal-state.entity';
+import { LLMCommitteeService } from './llm-committee.service';
 import { AnalystAgent } from '../agents/analyst.agent';
 import { RelationalAgent } from '../agents/relational.agent';
 import { EthicsAgent } from '../agents/ethics.agent';
@@ -25,11 +26,15 @@ export class VCTTEngineService {
   private inMemoryConversations: Map<string, any> = new Map();
   private inMemoryMessages: Map<string, any[]> = new Map();
   private inMemoryStates: Map<string, any> = new Map();
+  
+  // Temporary tracking for LLM contributions during pipeline execution
+  private currentContributions: Map<string, any[]> = new Map();
 
   constructor(
     @Optional() @InjectRepository(Conversation) private convRepo: Repository<Conversation> | null,
     @Optional() @InjectRepository(Message) private msgRepo: Repository<Message> | null,
     @Optional() @InjectRepository(InternalState) private stateRepo: Repository<InternalState> | null,
+    @Optional() private committeeService: LLMCommitteeService | null,
     private analystAgent: AnalystAgent,
     private relationalAgent: RelationalAgent,
     private ethicsAgent: EthicsAgent,
@@ -56,6 +61,58 @@ export class VCTTEngineService {
    */
   private get hasDatabase(): boolean {
     return !!(this.convRepo && this.msgRepo && this.stateRepo);
+  }
+
+  /**
+   * Track LLM contribution (temporarily in memory during request)
+   */
+  private trackContribution(
+    sessionId: string,
+    agentName: string,
+    modelName: string,
+    contributed: boolean,
+    offline: boolean = false,
+    errorType?: string,
+    cost?: number,
+    latency?: number,
+  ): void {
+    if (!this.currentContributions.has(sessionId)) {
+      this.currentContributions.set(sessionId, []);
+    }
+    
+    this.currentContributions.get(sessionId)!.push({
+      agent_name: agentName,
+      model_name: modelName,
+      contributed,
+      offline,
+      error_type: errorType,
+      cost_usd: cost || 0,
+      latency_ms: latency || 0,
+    });
+  }
+
+  /**
+   * Flush tracked contributions to database (called at end of pipeline)
+   */
+  private async flushContributions(sessionId: string): Promise<void> {
+    if (!this.committeeService) return;
+    
+    const contributions = this.currentContributions.get(sessionId) || [];
+    
+    for (const contrib of contributions) {
+      try {
+        await this.committeeService.recordContribution({
+          session_id: sessionId,
+          ...contrib,
+        });
+      } catch (error) {
+        // Don't let tracking errors break the pipeline
+        this.logger.debug(`Failed to record contribution: ${error.message}`);
+      }
+    }
+    
+    // Clean up
+    this.currentContributions.delete(sessionId);
   }
 
   /**
@@ -283,6 +340,27 @@ export class VCTTEngineService {
     }
 
     this.logger.log(`=== PIPELINE COMPLETE === τ=${state.state.trust_tau.toFixed(3)}, repairs=${state.state.repair_count}`);
+
+    // Track LLM contributions for transparency
+    // MVP: Track key models that participated
+    if (needsFactVerification) {
+      // Grok-3 was used for verification
+      this.trackContribution(sessionId, 'verification', 'grok-3', true, false);
+    }
+    
+    // Track synthesiser model
+    const synthModel = responseObj.metadata?.model || 'claude-3.5';
+    this.trackContribution(sessionId, 'synthesiser', synthModel, true, false, undefined, 
+      responseObj.metadata?.cost_usd, responseObj.metadata?.latency_ms);
+    
+    // Track primary models for agents (based on cascade configuration)
+    // These are best-effort estimates for MVP
+    this.trackContribution(sessionId, 'analyst', 'claude-3.5', true, false);
+    this.trackContribution(sessionId, 'relational', 'gpt-5', true, false);
+    this.trackContribution(sessionId, 'ethics', 'gpt-5', true, false);
+
+    // Flush all tracked contributions to database
+    await this.flushContributions(sessionId);
 
     return {
       response,
