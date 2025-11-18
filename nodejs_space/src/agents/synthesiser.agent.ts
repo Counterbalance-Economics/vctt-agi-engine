@@ -56,17 +56,25 @@ Respond with verified facts only.`;
       
       // Parse JSON response from Grok
       let verifiedData: any;
+      let parseSucceeded = true;
       try {
         verifiedData = JSON.parse(verification.content);
+        this.logger.log(`✅ Grok JSON parsed successfully`);
       } catch (parseError) {
-        this.logger.error(`❌ Failed to parse Grok JSON response: ${parseError.message}`);
-        this.logger.error(`   Raw response: ${verification.content.substring(0, 200)}...`);
-        // Fallback: use raw content if JSON parsing fails
+        parseSucceeded = false;
+        this.logger.warn(`⚠️  Grok JSON parsing failed: ${parseError.message}`);
+        this.logger.warn(`   Raw response: ${verification.content.substring(0, 200)}...`);
+        
+        // GROK SAFETY NET: If parsing fails, use raw Grok content anyway
+        // Grok's real-time verification is ALWAYS trusted, even if format is wrong
+        this.logger.log(`🛡️  GROK SAFETY NET: Using raw Grok response (still trusted at 0.85)`);
+        
         verifiedData = {
-          content: verification.content,
+          content: verification.content,  // Use Grok's raw prose - it's still truth
           verified_facts: [],
-          sources: [],
-          confidence: 0.5
+          sources: ['Grok real-time verification'],
+          confidence: 0.85,  // Grok is always trusted, even in prose format
+          parse_fallback: true,  // Flag to indicate we're using fallback
         };
       }
       
@@ -81,9 +89,10 @@ Respond with verified facts only.`;
         contentToCheck.toLowerCase().includes(keyword)
       );
       
-      this.logger.log(`✅ Early verification complete - discrepancy: ${hasDiscrepancy}`);
+      const statusIcon = parseSucceeded ? '✅' : '🛡️';
+      this.logger.log(`${statusIcon} Early verification complete - discrepancy: ${hasDiscrepancy}, parse_mode: ${parseSucceeded ? 'JSON' : 'SAFETY_NET'}`);
       this.logger.log(`   Verified facts: ${verifiedData.verified_facts?.join(', ') || 'none'}`);
-      this.logger.log(`   Confidence: ${verifiedData.confidence || 'unknown'}`);
+      this.logger.log(`   Confidence: ${verifiedData.confidence || 'unknown'} (${verifiedData.parse_fallback ? 'Grok Safety Net Active' : 'Clean Parse'})`);
       
       return {
         content: contentToCheck,

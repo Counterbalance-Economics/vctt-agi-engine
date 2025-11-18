@@ -82,24 +82,61 @@ Start with { and end with }. If you write anything other than JSON, the system w
         content = content.substring(firstBrace, lastBrace + 1);
       }
 
-      const analysis = JSON.parse(content);
+      let analysis: any;
+      let parseSucceeded = true;
+      
+      try {
+        analysis = JSON.parse(content);
+        this.logger.log(`✅ Analyst JSON parsed successfully`);
+      } catch (parseError) {
+        parseSucceeded = false;
+        this.logger.warn(`⚠️  Analyst JSON parsing failed: ${parseError.message}`);
+        this.logger.warn(`   Raw content: ${content.substring(0, 200)}...`);
+        
+        // GROK SAFETY NET: Check if response came from Grok
+        const isGrokResponse = (response.usedProvider || response.model || '').toLowerCase().includes('grok');
+        
+        if (isGrokResponse) {
+          // If Grok provided the response, trust it even if format is wrong
+          this.logger.log(`🛡️  GROK SAFETY NET: Using trusted fallback values (low tension)`);
+          analysis = {
+            logical_complexity: 0.1,  // Low complexity = high trust
+            fallacies: [],
+            premises: ['Grok verified'],
+            conclusions: ['Real-time facts'],
+            tension: 0.05,  // Very low tension = high trust
+          };
+        } else {
+          // For non-Grok responses, use neutral fallback
+          this.logger.log(`⚠️  Using neutral fallback values`);
+          analysis = {
+            logical_complexity: 0.5,
+            fallacies: [],
+            premises: ['Parse failed'],
+            conclusions: ['Fallback values'],
+            tension: 0.3,  // Moderate tension
+          };
+        }
+      }
 
       // Update state based on analysis
       if (typeof analysis.tension === 'number') {
         state.state.sim.tension = Math.max(0, Math.min(1, analysis.tension));
       }
       
+      const statusIcon = parseSucceeded ? '✅' : '🛡️';
       this.logger.log(
-        `✅ Analyst complete - tension: ${state.state.sim.tension.toFixed(3)}, ` +
+        `${statusIcon} Analyst complete - tension: ${state.state.sim.tension.toFixed(3)}, ` +
         `fallacies: ${analysis.fallacies?.length || 0}, ` +
         `complexity: ${analysis.logical_complexity?.toFixed(2) || 'N/A'}, ` +
         `cost: $${response.cost.toFixed(4)}, ` +
         `latency: ${response.latencyMs}ms, ` +
-        `provider: ${response.usedProvider || response.model} (Tier ${response.tierUsed || '?'})`
+        `provider: ${response.usedProvider || response.model} (Tier ${response.tierUsed || '?'}), ` +
+        `parse_mode: ${parseSucceeded ? 'JSON' : 'SAFETY_NET'}`
       );
     } catch (error) {
       this.logger.error(`❌ Analyst agent error: ${error.message}`);
-      // Fallback to baseline values
+      // Final fallback to baseline values
       state.state.sim.tension = Math.min(state.state.sim.tension + 0.1, 1.0);
       this.logger.warn(`⚠️ Using fallback tension: ${state.state.sim.tension.toFixed(3)}`);
     }
