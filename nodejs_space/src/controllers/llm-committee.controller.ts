@@ -44,7 +44,8 @@ export class LLMCommitteeController {
     type: GlobalCommitteeStatsDto,
   })
   async getGlobalStats(@Query() query: LLMCommitteeQueryDto): Promise<GlobalCommitteeStatsDto> {
-    const limit = query.limit || 50;
+    // Ensure limit is a number (convert from string if needed)
+    const limit = Number(query.limit) || 50;
     this.logger.log(`📊 LLM Committee - Global stats requested (last ${limit} questions)`);
     return this.committeeService.getGlobalStats(limit);
   }
