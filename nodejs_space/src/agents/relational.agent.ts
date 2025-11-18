@@ -60,10 +60,19 @@ Respond ONLY with valid JSON. No markdown, no explanations.`;
       const latency = Date.now() - startTime;
 
       // Parse JSON response (strip markdown if present)
-      let content = response.content;
+      let content = response.content.trim();
       if (content.includes('```json')) {
-        content = content.replace(/```json\n/g, '').replace(/```/g, '');
+        content = content.replace(/```json\n/g, '').replace(/```/g, '').trim();
       }
+      
+      // Extract JSON if there's prose before/after it (safety net)
+      const firstBrace = content.indexOf('{');
+      const lastBrace = content.lastIndexOf('}');
+      
+      if (firstBrace !== -1 && lastBrace !== -1 && firstBrace < lastBrace) {
+        content = content.substring(firstBrace, lastBrace + 1);
+      }
+      
       const analysis = JSON.parse(content);
 
       // Update state based on analysis

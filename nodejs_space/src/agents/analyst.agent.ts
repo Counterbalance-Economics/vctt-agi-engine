@@ -37,14 +37,18 @@ Analyze the conversation and provide:
    - 0.5 = Moderate tension, some inconsistencies
    - 1.0 = High tension, significant contradictions
 
-Return ONLY valid JSON (no markdown, no extra text):
-{
-  "logical_complexity": <0.0-1.0>,
-  "fallacies": ["fallacy1", "fallacy2"],
-  "premises": ["premise1", "premise2"],
-  "conclusions": ["conclusion1"],
-  "tension": <0.0-1.0>
-}`;
+⚠️ CRITICAL: You MUST respond with ONLY valid JSON and NOTHING ELSE.
+Do NOT include:
+- Explanatory text before or after the JSON
+- Markdown formatting or code blocks
+- Natural language like "As of my last training..." or "Here is the analysis..."
+- ANY text outside the JSON object
+
+Return EXACTLY this format (with actual values):
+{"logical_complexity":0.3,"fallacies":["example"],"premises":["key premise"],"conclusions":["conclusion"],"tension":0.15}
+
+If the conversation is simple, return low values:
+{"logical_complexity":0.1,"fallacies":[],"premises":["user question"],"conclusions":["needs answer"],"tension":0.05}`;
 
     try {
       const response = await this.llmService.generateCompletion(
@@ -60,6 +64,15 @@ Return ONLY valid JSON (no markdown, no extra text):
       // Remove markdown code blocks if present
       if (content.startsWith('```')) {
         content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      }
+      
+      // Extract JSON if there's prose before/after it (safety net)
+      // Look for the first { and last } to extract pure JSON
+      const firstBrace = content.indexOf('{');
+      const lastBrace = content.lastIndexOf('}');
+      
+      if (firstBrace !== -1 && lastBrace !== -1 && firstBrace < lastBrace) {
+        content = content.substring(firstBrace, lastBrace + 1);
       }
 
       const analysis = JSON.parse(content);
