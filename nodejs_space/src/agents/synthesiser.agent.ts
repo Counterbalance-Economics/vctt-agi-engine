@@ -24,6 +24,14 @@ export class SynthesiserAgent {
     try {
       this.logger.log('🔍 Early Grok verification starting...');
       
+      // Check if Grok API key is configured
+      if (!process.env.XAI_API_KEY) {
+        this.logger.error('❌ GROK VERIFICATION FAILED: XAI_API_KEY not set in environment!');
+        this.logger.error('   → Add XAI_API_KEY to Render Environment Variables');
+        this.logger.error('   → Falling back to non-verified response');
+        return null;
+      }
+      
       const verificationQuery = `Verify the following query with current, accurate information. Identify any potential inaccuracies or outdated assumptions:\n\n${query}`;
       
       const verification = await this.llmService.verifyWithGrok(
@@ -50,7 +58,8 @@ export class SynthesiserAgent {
         timestamp: new Date(),
       };
     } catch (error) {
-      this.logger.warn(`⚠️ Early verification failed: ${error.message}`);
+      this.logger.error(`❌ Grok verification failed: ${error.message}`);
+      this.logger.error(`   Stack: ${error.stack}`);
       return null;
     }
   }
