@@ -334,4 +334,315 @@ export class AnalyticsService {
       timestamp: new Date().toISOString(),
     };
   }
+
+  /**
+   * Get cost analytics with detailed breakdown
+   */
+  async getCostAnalytics(filters?: {
+    userId?: string;
+    sessionId?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }) {
+    this.logger.log('Getting cost analytics');
+
+    let query = this.msgRepo!.createQueryBuilder('message')
+      .leftJoin('message.conversation', 'conversation')
+      .where('message.role = :role', { role: 'assistant' })
+      .andWhere('message.cost_usd IS NOT NULL');
+
+    if (filters?.sessionId) {
+      query = query.andWhere('message.conversation_id = :sessionId', { 
+        sessionId: filters.sessionId 
+      });
+    }
+
+    if (filters?.userId) {
+      query = query.andWhere('conversation.user_id = :userId', { 
+        userId: filters.userId 
+      });
+    }
+
+    if (filters?.startDate) {
+      query = query.andWhere('message.timestamp >= :startDate', { 
+        startDate: filters.startDate 
+      });
+    }
+
+    if (filters?.endDate) {
+      query = query.andWhere('message.timestamp <= :endDate', { 
+        endDate: filters.endDate 
+      });
+    }
+
+    const messages = await query
+      .select([
+        'message.id',
+        'message.conversation_id',
+        'message.timestamp',
+        'message.model',
+        'message.tokens_input',
+        'message.tokens_output',
+        'message.tokens_total',
+        'message.cost_usd',
+        'message.latency_ms',
+      ])
+      .getRawMany();
+
+    // Calculate aggregates
+    const totalCost = messages.reduce((sum, m) => sum + (parseFloat(m.message_cost_usd) || 0), 0);
+    const totalTokens = messages.reduce((sum, m) => sum + (m.message_tokens_total || 0), 0);
+    const totalCalls = messages.length;
+    const avgLatency = messages.length > 0
+      ? messages.reduce((sum, m) => sum + (m.message_latency_ms || 0), 0) / messages.length
+      : 0;
+
+    // Model breakdown
+    const modelBreakdown: Record<string, any> = {};
+    messages.forEach(m => {
+      const model = m.message_model || 'unknown';
+      if (!modelBreakdown[model]) {
+        modelBreakdown[model] = {
+          calls: 0,
+          tokens: 0,
+          cost: 0,
+          avg_latency: 0,
+          latencies: [],
+        };
+      }
+      modelBreakdown[model].calls++;
+      modelBreakdown[model].tokens += m.message_tokens_total || 0;
+      modelBreakdown[model].cost += parseFloat(m.message_cost_usd) || 0;
+      if (m.message_latency_ms) {
+        modelBreakdown[model].latencies.push(m.message_latency_ms);
+      }
+    });
+
+    // Calculate average latencies
+    Object.keys(modelBreakdown).forEach(model => {
+      const latencies = modelBreakdown[model].latencies;
+      modelBreakdown[model].avg_latency = latencies.length > 0
+        ? latencies.reduce((sum: number, l: number) => sum + l, 0) / latencies.length
+        : 0;
+      delete modelBreakdown[model].latencies;
+    });
+
+    // Daily cost breakdown
+    const dailyBreakdown: Record<string, number> = {};
+    messages.forEach(m => {
+      const date = new Date(m.message_timestamp).toISOString().split('T')[0];
+      dailyBreakdown[date] = (dailyBreakdown[date] || 0) + (parseFloat(m.message_cost_usd) || 0);
+    });
+
+    return {
+      summary: {
+        total_cost_usd: totalCost,
+        total_tokens: totalTokens,
+        total_llm_calls: totalCalls,
+        avg_cost_per_call: totalCalls > 0 ? totalCost / totalCalls : 0,
+        avg_tokens_per_call: totalCalls > 0 ? totalTokens / totalCalls : 0,
+        avg_latency_ms: avgLatency,
+      },
+      model_breakdown: modelBreakdown,
+      daily_breakdown: Object.entries(dailyBreakdown).map(([date, cost]) => ({
+        date,
+        cost_usd: cost,
+      })).sort((a, b) => a.date.localeCompare(b.date)),
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Get performance metrics
+   */
+  async getPerformanceMetrics(filters?: {
+    userId?: string;
+    sessionId?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }) {
+    this.logger.log('Getting performance metrics');
+
+    let query = this.msgRepo!.createQueryBuilder('message')
+      .leftJoin('message.conversation', 'conversation')
+      .where('message.role = :role', { role: 'assistant' })
+      .andWhere('message.latency_ms IS NOT NULL');
+
+    if (filters?.sessionId) {
+      query = query.andWhere('message.conversation_id = :sessionId', { 
+        sessionId: filters.sessionId 
+      });
+    }
+
+    if (filters?.userId) {
+      query = query.andWhere('conversation.user_id = :userId', { 
+        userId: filters.userId 
+      });
+    }
+
+    if (filters?.startDate) {
+      query = query.andWhere('message.timestamp >= :startDate', { 
+        startDate: filters.startDate 
+      });
+    }
+
+    if (filters?.endDate) {
+      query = query.andWhere('message.timestamp <= :endDate', { 
+        endDate: filters.endDate 
+      });
+    }
+
+    const messages = await query
+      .select([
+        'message.id',
+        'message.timestamp',
+        'message.model',
+        'message.tokens_total',
+        'message.latency_ms',
+      ])
+      .getRawMany();
+
+    if (messages.length === 0) {
+      return {
+        summary: {
+          total_requests: 0,
+          avg_latency_ms: 0,
+          min_latency_ms: 0,
+          max_latency_ms: 0,
+          p50_latency_ms: 0,
+          p95_latency_ms: 0,
+          p99_latency_ms: 0,
+        },
+        latency_distribution: [],
+        hourly_performance: [],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // Calculate latency percentiles
+    const latencies = messages
+      .map(m => m.message_latency_ms)
+      .filter(l => l != null)
+      .sort((a, b) => a - b);
+
+    const getPercentile = (arr: number[], p: number) => {
+      const index = Math.ceil(arr.length * p) - 1;
+      return arr[Math.max(0, index)];
+    };
+
+    const avgLatency = latencies.reduce((sum, l) => sum + l, 0) / latencies.length;
+
+    // Hourly performance breakdown
+    const hourlyPerformance: Record<string, { count: number; total_latency: number }> = {};
+    messages.forEach(m => {
+      const hour = new Date(m.message_timestamp).toISOString().split(':')[0] + ':00';
+      if (!hourlyPerformance[hour]) {
+        hourlyPerformance[hour] = { count: 0, total_latency: 0 };
+      }
+      hourlyPerformance[hour].count++;
+      hourlyPerformance[hour].total_latency += m.message_latency_ms || 0;
+    });
+
+    return {
+      summary: {
+        total_requests: messages.length,
+        avg_latency_ms: avgLatency,
+        min_latency_ms: Math.min(...latencies),
+        max_latency_ms: Math.max(...latencies),
+        p50_latency_ms: getPercentile(latencies, 0.5),
+        p95_latency_ms: getPercentile(latencies, 0.95),
+        p99_latency_ms: getPercentile(latencies, 0.99),
+      },
+      latency_distribution: [
+        { range: '0-1s', count: latencies.filter(l => l < 1000).length },
+        { range: '1-2s', count: latencies.filter(l => l >= 1000 && l < 2000).length },
+        { range: '2-5s', count: latencies.filter(l => l >= 2000 && l < 5000).length },
+        { range: '5-10s', count: latencies.filter(l => l >= 5000 && l < 10000).length },
+        { range: '10s+', count: latencies.filter(l => l >= 10000).length },
+      ],
+      hourly_performance: Object.entries(hourlyPerformance).map(([hour, data]) => ({
+        hour,
+        requests: data.count,
+        avg_latency_ms: data.total_latency / data.count,
+      })).sort((a, b) => a.hour.localeCompare(b.hour)),
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Export analytics data
+   */
+  async exportAnalytics(
+    format: 'json' | 'csv',
+    filters?: {
+      userId?: string;
+      sessionId?: string;
+      startDate?: Date;
+      endDate?: Date;
+    }
+  ) {
+    this.logger.log(`Exporting analytics as ${format}`);
+
+    let query = this.msgRepo!.createQueryBuilder('message')
+      .leftJoin('message.conversation', 'conversation')
+      .addSelect(['conversation.id', 'conversation.user_id', 'conversation.created_at'])
+      .where('message.role = :role', { role: 'assistant' });
+
+    if (filters?.sessionId) {
+      query = query.andWhere('message.conversation_id = :sessionId', { 
+        sessionId: filters.sessionId 
+      });
+    }
+
+    if (filters?.userId) {
+      query = query.andWhere('conversation.user_id = :userId', { 
+        userId: filters.userId 
+      });
+    }
+
+    if (filters?.startDate) {
+      query = query.andWhere('message.timestamp >= :startDate', { 
+        startDate: filters.startDate 
+      });
+    }
+
+    if (filters?.endDate) {
+      query = query.andWhere('message.timestamp <= :endDate', { 
+        endDate: filters.endDate 
+      });
+    }
+
+    const results = await query.getMany();
+
+    const exportData = results.map(m => ({
+      message_id: m.id,
+      session_id: m.conversation_id,
+      user_id: m.conversation?.user_id || null,
+      timestamp: m.timestamp,
+      model: m.model || null,
+      tokens_input: m.tokens_input || 0,
+      tokens_output: m.tokens_output || 0,
+      tokens_total: m.tokens_total || 0,
+      cost_usd: m.cost_usd ? parseFloat(m.cost_usd.toString()) : 0,
+      latency_ms: m.latency_ms || 0,
+    }));
+
+    if (format === 'csv') {
+      // Convert to CSV
+      if (exportData.length === 0) {
+        return 'No data available';
+      }
+
+      const headers = Object.keys(exportData[0]).join(',');
+      const rows = exportData.map(row => 
+        Object.values(row).map(val => 
+          typeof val === 'string' && val.includes(',') ? `"${val}"` : val
+        ).join(',')
+      );
+
+      return [headers, ...rows].join('\n');
+    }
+
+    return exportData;
+  }
 }

@@ -17,7 +17,7 @@ export class SynthesiserAgent {
 
   constructor(private llmService: LLMService) {}
 
-  async synthesize(messages: Message[], state: InternalState): Promise<string> {
+  async synthesize(messages: Message[], state: InternalState): Promise<{ content: string; metadata?: any }> {
     this.logger.log('💬 Synthesiser Agent - generating coherent response');
 
     const conversationHistory = messages.map(m => ({
@@ -95,14 +95,27 @@ Generate a coherent, thoughtful, and **COMPREHENSIVE** response that:
         `model: ${response.model}`
       );
       
-      return finalResponse;
+      return {
+        content: finalResponse,
+        metadata: {
+          model: response.model,
+          tokens_input: response.tokensUsed.input,
+          tokens_output: response.tokensUsed.output,
+          tokens_total: response.tokensUsed.total,
+          cost_usd: response.cost,
+          latency_ms: response.latencyMs,
+        },
+      };
     } catch (error) {
       this.logger.error(`❌ Synthesiser agent error: ${error.message}`);
       
       // Graceful fallback that maintains conversation
-      return `I understand your query, but I'm experiencing temporary processing issues. ` +
-             `This is a transient error - please try again in a moment. ` +
-             `(System coherence: τ=${state.state.trust_tau.toFixed(3)}, regulation: ${state.state.regulation})`;
+      return {
+        content: `I understand your query, but I'm experiencing temporary processing issues. ` +
+                 `This is a transient error - please try again in a moment. ` +
+                 `(System coherence: τ=${state.state.trust_tau.toFixed(3)}, regulation: ${state.state.regulation})`,
+        metadata: undefined,
+      };
     }
   }
 }

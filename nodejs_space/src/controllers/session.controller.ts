@@ -1,7 +1,9 @@
 
-import { Controller, Post, Get, Body, Param, ValidationPipe, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, ValidationPipe, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { VCTTEngineService } from '../services/vctt-engine.service';
+import { RateLimitGuard } from '../guards/rate-limit.guard';
+import { CostLimitGuard } from '../guards/cost-limit.guard';
 import {
   StartSessionDto,
   ProcessStepDto,
@@ -12,6 +14,7 @@ import {
 
 @ApiTags('session')
 @Controller('api/v1/session')
+@UseGuards(RateLimitGuard, CostLimitGuard)
 export class SessionController {
   constructor(private readonly engine: VCTTEngineService) {}
 
@@ -29,6 +32,18 @@ export class SessionController {
   @ApiResponse({
     status: 400,
     description: 'Invalid input parameters',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Rate limit exceeded - too many requests',
+  })
+  @ApiResponse({
+    status: 402,
+    description: 'Cost limit exceeded for user or session',
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'Service unavailable - daily cost limit exceeded',
   })
   async startSession(
     @Body(ValidationPipe) body: StartSessionDto,
@@ -55,6 +70,18 @@ export class SessionController {
   @ApiResponse({
     status: 400,
     description: 'Invalid input parameters',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Rate limit exceeded - too many requests',
+  })
+  @ApiResponse({
+    status: 402,
+    description: 'Cost limit exceeded for user or session',
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'Service unavailable - daily cost limit exceeded',
   })
   async processStep(
     @Body(ValidationPipe) body: ProcessStepDto,

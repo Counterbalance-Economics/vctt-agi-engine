@@ -194,14 +194,22 @@ export class VCTTEngineService {
 
     // === SYNTHESISER (Final Response Generation) ===
     this.logger.log('=== GENERATING FINAL RESPONSE ===');
-    const response = await this.synthesiserAgent.synthesize(messages, state);
+    const responseObj = await this.synthesiserAgent.synthesize(messages, state);
+    const response = responseObj.content;
 
-    // Save assistant response
+    // Save assistant response with LLM metadata
     if (this.hasDatabase) {
       const assistantMsg = this.msgRepo!.create({
         conversation_id: sessionId,
         role: 'assistant',
         content: response,
+        // Save LLM metadata for cost/performance tracking
+        model: responseObj.metadata?.model,
+        tokens_input: responseObj.metadata?.tokens_input,
+        tokens_output: responseObj.metadata?.tokens_output,
+        tokens_total: responseObj.metadata?.tokens_total,
+        cost_usd: responseObj.metadata?.cost_usd,
+        latency_ms: responseObj.metadata?.latency_ms,
       });
       await this.msgRepo!.save(assistantMsg);
 

@@ -17,6 +17,8 @@ import { CAMModule } from './modules/cam.module';
 import { SREModule } from './modules/sre.module';
 import { CTMModule } from './modules/ctm.module';
 import { RILModule } from './modules/ril.module';
+import { RateLimitGuard } from './guards/rate-limit.guard';
+import { CostLimitGuard } from './guards/cost-limit.guard';
 import { Conversation } from './entities/conversation.entity';
 import { Message } from './entities/message.entity';
 import { InternalState } from './entities/internal-state.entity';
@@ -63,6 +65,10 @@ import { InternalState } from './entities/internal-state.entity';
     SREModule,
     CTMModule,
     RILModule,
+    
+    // Guards (for @UseGuards decorator)
+    RateLimitGuard,
+    CostLimitGuard,
   ],
   
   controllers: [
