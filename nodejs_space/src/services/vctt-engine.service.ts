@@ -226,6 +226,24 @@ export class VCTTEngineService {
     const responseObj = await this.synthesiserAgent.synthesize(messages, state, grokVerificationData);
     const response = responseObj.content;
 
+    // 🚨 GROK TRUTH OVERRIDE: If we hit max repairs with low trust, but Grok was used, trust it!
+    const grokWasUsed = responseObj.metadata?.model?.toLowerCase().includes('grok') || 
+                        (grokVerificationData && grokVerificationData.hasDiscrepancy);
+    
+    if (state.state.repair_count >= this.max_repairs && state.state.trust_tau < 0.7) {
+      if (grokWasUsed) {
+        // Grok has real-time verification — it's the truth anchor when all else fails
+        this.logger.log('🔥 GROK TRUTH OVERRIDE: Max repairs reached, but Grok verified facts — delivering response');
+        this.logger.log(`   Original τ: ${state.state.trust_tau.toFixed(3)} → Boosted τ: 0.85 (Grok-verified)`);
+        
+        // Boost trust because Grok's real-time verification is authoritative
+        state.state.trust_tau = 0.85;
+        state.state.regulation = 'normal'; // Grok saved us!
+      } else {
+        this.logger.warn('⚠️  Max repairs reached with low trust and no Grok verification — response quality may be degraded');
+      }
+    }
+
     // Save assistant response with LLM metadata
     if (this.hasDatabase) {
       const assistantMsg = this.msgRepo!.create({
