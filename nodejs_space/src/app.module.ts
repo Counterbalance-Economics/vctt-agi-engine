@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { VCTTEngineService } from './services/vctt-engine.service';
 import { AnalyticsService } from './services/analytics.service';
+import { LLMService } from './services/llm.service';
 import { SessionController } from './controllers/session.controller';
 import { HealthController } from './controllers/health.controller';
 import { AnalyticsController } from './controllers/analytics.controller';
@@ -48,6 +49,7 @@ import { InternalState } from './entities/internal-state.entity';
     // Core services
     VCTTEngineService,
     AnalyticsService,
+    LLMService,
     
     // Agents
     AnalystAgent,
