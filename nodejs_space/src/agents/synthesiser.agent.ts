@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InternalState } from '../entities/internal-state.entity';
 import { Message } from '../entities/message.entity';
 import { LLMService } from '../services/llm.service';
+import { LLMCascadeService } from '../services/llm-cascade.service';
 
 /**
  * Synthesiser Agent - Generates coherent, user-facing responses
@@ -15,7 +16,7 @@ import { LLMService } from '../services/llm.service';
 export class SynthesiserAgent {
   private readonly logger = new Logger(SynthesiserAgent.name);
 
-  constructor(private llmService: LLMService) {}
+  constructor(private llmService: LLMService, private llmCascade: LLMCascadeService) {}
 
   /**
    * PHASE 3.5: Perform early verification (runs in parallel with other agents)
@@ -138,7 +139,7 @@ Generate a coherent, thoughtful, and **COMPREHENSIVE** response that:
 ${verificationContext}`;
 
     try {
-      const response = await this.llmService.generateCompletion(
+      const response = await this.llmCascade.generateCompletion(
         conversationHistory,
         systemPrompt,
         0.7, // Balanced temperature for natural conversation

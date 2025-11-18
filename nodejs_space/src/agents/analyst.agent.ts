@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InternalState } from '../entities/internal-state.entity';
 import { Message } from '../entities/message.entity';
 import { LLMService } from '../services/llm.service';
+import { LLMCascadeService } from '../services/llm-cascade.service';
 
 /**
  * Analyst Agent - Analyzes logical structure and reasoning quality
@@ -14,7 +15,10 @@ import { LLMService } from '../services/llm.service';
 export class AnalystAgent {
   private readonly logger = new Logger(AnalystAgent.name);
 
-  constructor(private llmService: LLMService) {}
+  constructor(
+    private llmService: LLMService,
+    private llmCascade: LLMCascadeService,
+  ) {}
 
   async analyze(messages: Message[], state: InternalState): Promise<void> {
     this.logger.log('🔍 Analyst Agent - analyzing logical structure');
@@ -51,11 +55,11 @@ If the conversation is simple, return low values:
 {"logical_complexity":0.1,"fallacies":[],"premises":["user question"],"conclusions":["needs answer"],"tension":0.05}`;
 
     try {
-      const response = await this.llmService.generateCompletion(
+      const response = await this.llmCascade.generateCompletion(
         conversationHistory,
         systemPrompt,
         0.3, // Low temperature for analytical consistency
-        'analyst', // Use Claude 3.5 Sonnet with MCP tools
+        'analyst', // Use cascading: RouteLLM Claude → Direct Claude → Grok-3 → GPT-5 → GPT-4o
         true, // Enable MCP tools (DB queries, calculations)
       );
 
@@ -88,7 +92,7 @@ If the conversation is simple, return low values:
         `complexity: ${analysis.logical_complexity?.toFixed(2) || 'N/A'}, ` +
         `cost: $${response.cost.toFixed(4)}, ` +
         `latency: ${response.latencyMs}ms, ` +
-        `model: ${response.model}`
+        `provider: ${response.usedProvider || response.model} (Tier ${response.tierUsed || '?'})`
       );
     } catch (error) {
       this.logger.error(`❌ Analyst agent error: ${error.message}`);

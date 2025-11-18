@@ -3,12 +3,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InternalState } from '../entities/internal-state.entity';
 import { Message } from '../entities/message.entity';
 import { LLMService } from '../services/llm.service';
+import { LLMCascadeService } from '../services/llm-cascade.service';
 
 @Injectable()
 export class RelationalAgent {
   private readonly logger = new Logger(RelationalAgent.name);
 
-  constructor(private llmService: LLMService) {}
+  constructor(private llmService: LLMService, private llmCascade: LLMCascadeService) {}
 
   async analyze(messages: Message[], state: InternalState): Promise<void> {
     this.logger.log('🔵 Running Relational Agent - analyzing emotional context');
@@ -49,7 +50,7 @@ Respond ONLY with valid JSON. No markdown, no explanations.`;
     const startTime = Date.now();
     
     try {
-      const response = await this.llmService.generateCompletion(
+      const response = await this.llmCascade.generateCompletion(
         conversationHistory,
         systemPrompt,
         0.5, // Moderate temperature for emotional nuance
