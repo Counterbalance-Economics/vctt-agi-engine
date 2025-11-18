@@ -33,7 +33,17 @@ export class SynthesiserAgent {
         return null;
       }
       
-      const verificationQuery = `Verify the following query with current, accurate information. Identify any potential inaccuracies or outdated assumptions:\n\n${query}`;
+      const verificationQuery = `You are Grok-3 with real-time web search. Verify this query against CURRENT facts (November 2025):
+
+Query: ${query}
+
+Instructions:
+1. If the query contains factual claims or questions, provide the CURRENT, accurate answer
+2. If you detect outdated information, explicitly state: "OUTDATED:" followed by the correct current information
+3. Use your real-time web access to provide facts as of November 2025
+4. Be specific with dates, names, and details
+
+Respond with verified facts only.`;
       
       const verification = await this.llmService.verifyWithGrok(
         verificationQuery,
@@ -44,10 +54,15 @@ export class SynthesiserAgent {
         }
       );
       
-      // Analyze if there are discrepancies
-      const hasDiscrepancy = verification.content.toLowerCase().includes('incorrect') || 
-                             verification.content.toLowerCase().includes('outdated') ||
-                             verification.content.toLowerCase().includes('inaccurate');
+      // Analyze if there are discrepancies (enhanced detection)
+      const discrepancyKeywords = [
+        'incorrect', 'outdated', 'inaccurate', 'wrong', 'false',
+        'actually', 'however', 'but', 'not', 'changed', 'different',
+        'as of', 'since', 'currently', 'now', 'updated', 'no longer'
+      ];
+      const hasDiscrepancy = discrepancyKeywords.some(keyword => 
+        verification.content.toLowerCase().includes(keyword)
+      );
       
       this.logger.log(`✅ Early verification complete - discrepancy: ${hasDiscrepancy}`);
       
@@ -80,7 +95,18 @@ export class SynthesiserAgent {
     // Build system prompt with optional Grok verification data
     let verificationContext = '';
     if (grokVerification) {
-      verificationContext = `\n\n🔍 **REAL-TIME VERIFICATION (Grok):**\n${grokVerification.content}\n\nIntegrate this verified information naturally into your response. Don't append it separately.`;
+      if (grokVerification.hasDiscrepancy) {
+        // CRITICAL: If Grok found a discrepancy, its facts are AUTHORITATIVE
+        verificationContext = `\n\n🚨 **REAL-TIME VERIFICATION (Grok) - DISCREPANCY DETECTED:**
+${grokVerification.content}
+
+**CRITICAL INSTRUCTION:** Grok has detected a factual discrepancy. You MUST use Grok's verified facts as the authoritative source.
+DO NOT rely on your training data cutoff. Grok has real-time access to current information.
+If Grok says "Trump is president", that is the correct answer, regardless of your training data.
+Integrate this verified information naturally into your response.`;
+      } else {
+        verificationContext = `\n\n🔍 **REAL-TIME VERIFICATION (Grok):**\n${grokVerification.content}\n\nIntegrate this verified information naturally into your response. Don't append it separately.`;
+      }
     }
 
     const systemPrompt = `You are the Synthesiser Agent in the VCTT-AGI Coherence Kernel.
@@ -136,6 +162,9 @@ Generate a coherent, thoughtful, and **COMPREHENSIVE** response that:
 - Provide full, developed thoughts
 - Be engaging and thoughtful
 
+
+CRITICAL: Your response MUST be valid JSON only. No prose, no explanations, no markdown.
+Start with { and end with }. If you write anything other than JSON, the system will fail.
 ${verificationContext}`;
 
     try {

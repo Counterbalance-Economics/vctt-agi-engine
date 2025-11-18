@@ -76,6 +76,19 @@ export class LLMCascadeService {
   };
 
   /**
+   * Detect if query requires real-time/factual information
+   */
+  private requiresRealTimeData(messages: any[]): boolean {
+    const lastMessage = messages[messages.length - 1]?.content?.toLowerCase() || '';
+    const factualKeywords = [
+      'president', 'current', 'now', 'today', '2024', '2025', 
+      'latest', 'recent', 'who is', 'what is', 'election',
+      'weather', 'stock', 'price', 'news', 'happened', 'update'
+    ];
+    return factualKeywords.some(kw => lastMessage.includes(kw));
+  }
+
+  /**
    * Main entry point: Call LLM with cascading fallback
    */
   async generateCompletion(
@@ -85,7 +98,21 @@ export class LLMCascadeService {
     agentRole: string,
     enableTools: boolean = false,
   ): Promise<LLMResponse> {
-    const cascade = this.cascades[agentRole] || this.cascades.analyst;
+    let cascade = this.cascades[agentRole] || this.cascades.analyst;
+    
+    // CRITICAL FIX: If query requires real-time data, prioritize Grok
+    if (this.requiresRealTimeData(messages)) {
+      this.logger.log(`🔍 Factual query detected - prioritizing Grok for real-time accuracy`);
+      
+      // Reorder cascade: Put Grok-3 as Tier 1 for factual queries
+      const grokProvider = cascade.find(p => p.name.includes('Grok'));
+      if (grokProvider) {
+        cascade = [
+          grokProvider,
+          ...cascade.filter(p => !p.name.includes('Grok'))
+        ];
+      }
+    }
     
     this.logger.log(`🌊 Starting cascade for ${agentRole} (${cascade.length} tiers)`);
 

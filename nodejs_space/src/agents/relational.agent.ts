@@ -45,6 +45,9 @@ export class RelationalAgent {
 - context_importance: how much does context matter for understanding this conversation?
 - dynamics: relationship patterns, power dynamics, trust signals, etc.
 
+
+CRITICAL: Your response MUST be valid JSON only. No prose, no explanations, no markdown.
+Start with { and end with }. If you write anything other than JSON, the system will fail.
 Respond ONLY with valid JSON. No markdown, no explanations.`;
 
     const startTime = Date.now();

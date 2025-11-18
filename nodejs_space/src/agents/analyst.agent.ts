@@ -52,7 +52,10 @@ Return EXACTLY this format (with actual values):
 {"logical_complexity":0.3,"fallacies":["example"],"premises":["key premise"],"conclusions":["conclusion"],"tension":0.15}
 
 If the conversation is simple, return low values:
-{"logical_complexity":0.1,"fallacies":[],"premises":["user question"],"conclusions":["needs answer"],"tension":0.05}`;
+{"logical_complexity":0.1,"fallacies":[],"premises":["user question"],"conclusions":["needs answer"],"tension":0.05}
+
+CRITICAL: Your response MUST be valid JSON only. No prose, no explanations, no markdown.
+Start with { and end with }. If you write anything other than JSON, the system will fail.`;
 
     try {
       const response = await this.llmCascade.generateCompletion(

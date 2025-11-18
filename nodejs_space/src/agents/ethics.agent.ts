@@ -52,6 +52,9 @@ export class EthicsAgent {
 - Bias or discrimination
 - Manipulation or coercion
 
+
+CRITICAL: Your response MUST be valid JSON only. No prose, no explanations, no markdown.
+Start with { and end with }. If you write anything other than JSON, the system will fail.
 Respond ONLY with valid JSON. No markdown, no explanations.`;
 
     const startTime = Date.now();
