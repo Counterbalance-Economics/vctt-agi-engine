@@ -135,8 +135,8 @@ Respond with verified facts only.`;
         metadata: {
           model: 'grok-3-direct',
           tokens_input: 0,
-          tokens_output: directResponse.length / 4, // Rough estimate
-          tokens_total: directResponse.length / 4,
+          tokens_output: Math.round(directResponse.length / 4), // Rough estimate (integer)
+          tokens_total: Math.round(directResponse.length / 4), // Rough estimate (integer)
           cost_usd: 0.001,
           latency_ms: 0,
         },
