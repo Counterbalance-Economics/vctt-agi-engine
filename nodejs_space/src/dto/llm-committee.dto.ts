@@ -1,6 +1,6 @@
 
 import { IsUUID, IsOptional, IsInt, Min, Max } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 /**
@@ -15,6 +15,7 @@ export class LLMCommitteeQueryDto {
     maximum: 500,
   })
   @IsOptional()
+  @Transform(({ value }) => value ? parseInt(value, 10) : 50)
   @Type(() => Number)
   @IsInt()
   @Min(1)
