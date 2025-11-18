@@ -349,15 +349,16 @@ export class VCTTEngineService {
     }
     
     // Track synthesiser model
-    const synthModel = responseObj.metadata?.model || 'claude-3.5';
+    const synthModel = responseObj.metadata?.model || 'claude';
     this.trackContribution(sessionId, 'synthesiser', synthModel, true, false, undefined, 
       responseObj.metadata?.cost_usd, responseObj.metadata?.latency_ms);
     
     // Track primary models for agents (based on cascade configuration)
-    // These are best-effort estimates for MVP
-    this.trackContribution(sessionId, 'analyst', 'claude-3.5', true, false);
+    // Using actual model names from llm.config.ts (Phase 3)
+    this.trackContribution(sessionId, 'analyst', 'claude', true, false);
     this.trackContribution(sessionId, 'relational', 'gpt-5', true, false);
     this.trackContribution(sessionId, 'ethics', 'gpt-5', true, false);
+    this.trackContribution(sessionId, 'verifier', 'grok-3', true, false);
 
     // Flush all tracked contributions to database
     await this.flushContributions(sessionId);
