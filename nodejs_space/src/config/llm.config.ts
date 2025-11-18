@@ -21,14 +21,14 @@ export const LLMConfig = {
   // HYBRID MODEL CONFIGURATION (Per-Agent)
   models: {
     // Agent-specific models (leveraging strengths)
-    analyst: 'claude',                          // Claude MCP for data analysis + tools (RouteLLM naming)
+    analyst: 'claude-3-5-sonnet',               // Claude 3.5 Sonnet MCP for data analysis + tools
     relational: 'gpt-5',                        // GPT-5 for emotional nuance
     ethics: 'gpt-5',                            // GPT-5 for moral reasoning
-    synthesiser: 'claude',                      // Claude MCP for synthesis + tools (RouteLLM naming)
+    synthesiser: 'claude-3-5-sonnet',           // Claude 3.5 Sonnet MCP for synthesis + tools
     
     // Legacy/fallback models
     primary: 'gpt-5',                           // Default for non-agent use
-    fallback: 'claude',                         // Fallback chain
+    fallback: 'gpt-4o',                         // Fallback to GPT-4o (more stable than Claude shorthand)
     verification: 'grok-3',                     // Grok-3 for real-time verification (free tier)
   },
   
@@ -136,6 +136,10 @@ export const LLMConfig = {
       outputPer1k: 0.010,        // $10.00 per 1M output tokens
     },
     'claude': {
+      inputPer1k: 0.003,         // $3.00 per 1M input tokens (legacy)
+      outputPer1k: 0.015,        // $15.00 per 1M output tokens
+    },
+    'claude-3-5-sonnet': {
       inputPer1k: 0.003,         // $3.00 per 1M input tokens
       outputPer1k: 0.015,        // $15.00 per 1M output tokens
     },

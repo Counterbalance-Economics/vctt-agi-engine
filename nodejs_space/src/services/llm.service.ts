@@ -258,8 +258,8 @@ Be concise, accurate, and cite your sources when possible.`;
       const outputTokens = data.usage?.completion_tokens ?? 0;
       const totalTokens = data.usage?.total_tokens ?? inputTokens + outputTokens;
       
-      // Calculate cost (using grok-4.1 pricing)
-      const modelCosts = LLMConfig.costs['grok-4.1'];
+      // Calculate cost (using grok-3 pricing)
+      const modelCosts = LLMConfig.costs['grok-3'];
       const cost = 
         (inputTokens / 1000) * modelCosts.inputPer1k +
         (outputTokens / 1000) * modelCosts.outputPer1k;
@@ -312,12 +312,13 @@ Be concise, accurate, and cite your sources when possible.`;
     for (let attempt = 0; attempt < LLMConfig.retry.maxRetries; attempt++) {
       try {
         // Build request body with optional MCP tools
+        // Note: top_p removed as some models (GPT-5) don't support it via RouteLLM
         const requestBody: any = {
           model,
           messages,
           temperature: temperature ?? LLMConfig.temperature,
           max_tokens: LLMConfig.limits.maxTokensPerRequest,
-          top_p: LLMConfig.topP,
+          // Removed: top_p - not supported by all models in RouteLLM
           frequency_penalty: LLMConfig.frequencyPenalty,
           presence_penalty: LLMConfig.presencePenalty,
           stream: false,
