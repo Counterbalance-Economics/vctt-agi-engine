@@ -163,8 +163,37 @@ export class VCTTEngineService {
 
     this.logger.log('=== STARTING VCTT PIPELINE ===');
 
-    // === RUN AGENTS (Initial Pass) ===
-    await this.runAgents(messages, state);
+    // 🎯 PHASE 3.5: Detect if query needs real-time verification (collaborative mode)
+    const needsFactVerification = this.detectFactualQuery(input);
+    let grokVerificationData: any = null;
+    
+    if (needsFactVerification) {
+      this.logger.log('🔍 Factual query detected - enabling collaborative verification mode');
+      
+      // Run Grok verification EARLY (in parallel with agents)
+      const verificationPromise = this.synthesiserAgent.performEarlyVerification(input, messages);
+      
+      // Run agents in parallel while verification happens
+      await Promise.all([
+        this.runAgents(messages, state, true), // Enable parallel mode
+        verificationPromise.then(result => { grokVerificationData = result; }),
+      ]);
+      
+      this.logger.log(`✅ Collaborative verification complete - trust boost possible`);
+      
+      // If Grok found issues, flag for re-analysis
+      if (grokVerificationData && grokVerificationData.hasDiscrepancy) {
+        this.logger.warn('⚠️ Grok flagged discrepancies - triggering re-analysis');
+        state.state.contradiction = Math.max(state.state.contradiction, 0.6);
+        state.state.trust_tau = Math.min(state.state.trust_tau, 0.75);
+      } else if (grokVerificationData) {
+        // Boost trust if verification confirms accuracy
+        state.state.trust_tau = Math.min(1.0, state.state.trust_tau + 0.05);
+      }
+    } else {
+      // === RUN AGENTS (Standard Sequential Mode) ===
+      await this.runAgents(messages, state, false);
+    }
 
     // === RUN MODULES (Initial Pass) ===
     this.runModules(messages, state, input);
@@ -194,7 +223,7 @@ export class VCTTEngineService {
 
     // === SYNTHESISER (Final Response Generation) ===
     this.logger.log('=== GENERATING FINAL RESPONSE ===');
-    const responseObj = await this.synthesiserAgent.synthesize(messages, state);
+    const responseObj = await this.synthesiserAgent.synthesize(messages, state, grokVerificationData);
     const response = responseObj.content;
 
     // Save assistant response with LLM metadata
@@ -299,14 +328,25 @@ export class VCTTEngineService {
   }
 
   /**
-   * Run all agents in sequence
+   * Run all agents - with optional concurrent mode for factual queries
    */
-  private async runAgents(messages: Message[], state: InternalState): Promise<void> {
+  private async runAgents(messages: Message[], state: InternalState, enableParallelVerification = false): Promise<void> {
     this.logger.log('Running all agents...');
     
-    await this.analystAgent.analyze(messages, state);
-    await this.relationalAgent.analyze(messages, state);
-    await this.ethicsAgent.analyze(messages, state);
+    if (enableParallelVerification) {
+      // PHASE 3.5: Concurrent mode - run Analyst + Grok in parallel
+      this.logger.log('🎯 Collaborative mode: Running Analyst + Ethics + Relational in parallel');
+      await Promise.all([
+        this.analystAgent.analyze(messages, state),
+        this.relationalAgent.analyze(messages, state),
+        this.ethicsAgent.analyze(messages, state),
+      ]);
+    } else {
+      // Original sequential mode
+      await this.analystAgent.analyze(messages, state);
+      await this.relationalAgent.analyze(messages, state);
+      await this.ethicsAgent.analyze(messages, state);
+    }
     
     this.logger.log('All agents completed');
   }
@@ -324,5 +364,20 @@ export class VCTTEngineService {
     this.rilModule.calculate(state, input);
     
     this.logger.log('All modules completed');
+  }
+
+  /**
+   * PHASE 3.5: Detect if a query requires real-time factual verification
+   */
+  private detectFactualQuery(input: string): boolean {
+    const factualKeywords = [
+      'current', 'today', 'now', 'latest', 'recent', 'president', 'who is',
+      'what happened', 'when did', 'news', '2025', '2024', 'executive order',
+      'verify', 'fact check', 'true', 'false', 'confirm', 'correct',
+      'stock price', 'weather', 'score', 'election', 'breaking'
+    ];
+    
+    const lowerInput = input.toLowerCase();
+    return factualKeywords.some(keyword => lowerInput.includes(keyword));
   }
 }

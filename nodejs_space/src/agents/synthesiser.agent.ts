@@ -17,13 +17,61 @@ export class SynthesiserAgent {
 
   constructor(private llmService: LLMService) {}
 
-  async synthesize(messages: Message[], state: InternalState): Promise<{ content: string; metadata?: any }> {
+  /**
+   * PHASE 3.5: Perform early verification (runs in parallel with other agents)
+   */
+  async performEarlyVerification(query: string, messages: Message[]): Promise<any> {
+    try {
+      this.logger.log('🔍 Early Grok verification starting...');
+      
+      const verificationQuery = `Verify the following query with current, accurate information. Identify any potential inaccuracies or outdated assumptions:\n\n${query}`;
+      
+      const verification = await this.llmService.verifyWithGrok(
+        verificationQuery,
+        {
+          enableWebSearch: true,
+          enableXSearch: false,
+          context: 'Early verification for collaborative multi-agent response',
+        }
+      );
+      
+      // Analyze if there are discrepancies
+      const hasDiscrepancy = verification.content.toLowerCase().includes('incorrect') || 
+                             verification.content.toLowerCase().includes('outdated') ||
+                             verification.content.toLowerCase().includes('inaccurate');
+      
+      this.logger.log(`✅ Early verification complete - discrepancy: ${hasDiscrepancy}`);
+      
+      return {
+        content: verification.content,
+        cost: verification.cost,
+        latencyMs: verification.latencyMs,
+        hasDiscrepancy,
+        timestamp: new Date(),
+      };
+    } catch (error) {
+      this.logger.warn(`⚠️ Early verification failed: ${error.message}`);
+      return null;
+    }
+  }
+
+  async synthesize(
+    messages: Message[], 
+    state: InternalState, 
+    grokVerification: any = null
+  ): Promise<{ content: string; metadata?: any }> {
     this.logger.log('💬 Synthesiser Agent - generating coherent response');
 
     const conversationHistory = messages.map(m => ({
       role: m.role as 'user' | 'assistant' | 'system',
       content: m.content,
     }));
+
+    // Build system prompt with optional Grok verification data
+    let verificationContext = '';
+    if (grokVerification) {
+      verificationContext = `\n\n🔍 **REAL-TIME VERIFICATION (Grok):**\n${grokVerification.content}\n\nIntegrate this verified information naturally into your response. Don't append it separately.`;
+    }
 
     const systemPrompt = `You are the Synthesiser Agent in the VCTT-AGI Coherence Kernel.
 
@@ -76,7 +124,9 @@ Generate a coherent, thoughtful, and **COMPREHENSIVE** response that:
 - Comprehensive and complete (aim for 3-5 paragraphs of rich reasoning)
 - Don't cut responses short
 - Provide full, developed thoughts
-- Be engaging and thoughtful`;
+- Be engaging and thoughtful
+
+${verificationContext}`;
 
     try {
       const response = await this.llmService.generateCompletion(
@@ -85,50 +135,17 @@ Generate a coherent, thoughtful, and **COMPREHENSIVE** response that:
         0.7, // Balanced temperature for natural conversation
       );
 
-      let finalResponse = response.content || 
+      const finalResponse = response.content || 
         `I understand your query. (τ=${state.state.trust_tau.toFixed(3)}, repairs=${state.state.repair_count})`;
 
-      // 🔍 GROK VERIFICATION: If trust is low, verify key facts
-      let verificationUsed = false;
-      if (state.state.trust_tau < 0.8 && messages.length > 0) {
-        const lastUserMessage = messages.filter(m => m.role === 'user').slice(-1)[0];
-        
-        // Check if the query seems to need real-time verification
-        const needsVerification = this.checkIfNeedsVerification(lastUserMessage?.content || '');
-        
-        if (needsVerification) {
-          try {
-            this.logger.log(`🔍 Low trust detected (τ=${state.state.trust_tau.toFixed(3)}), invoking Grok for verification...`);
-            
-            const verificationQuery = `Verify the following information and provide accurate, up-to-date facts:\n\nUser query: ${lastUserMessage.content}\n\nResponse to verify: ${finalResponse.substring(0, 500)}`;
-            
-            const verification = await this.llmService.verifyWithGrok(
-              verificationQuery,
-              {
-                enableWebSearch: true,
-                enableXSearch: false, // Only enable if needed
-                context: `Trust level: ${state.state.trust_tau.toFixed(3)}, Contradiction: ${state.state.contradiction.toFixed(3)}`,
-              }
-            );
-            
-            // Append verification results
-            finalResponse = `${finalResponse}\n\n---\n**🔍 Verification (Grok):** ${verification.content}`;
-            verificationUsed = true;
-            
-            this.logger.log(`✅ Grok verification added - cost: $${verification.cost.toFixed(4)}`);
-          } catch (verifyError) {
-            this.logger.warn(`⚠️ Grok verification failed: ${verifyError.message}`);
-            // Continue without verification - don't break the response
-          }
-        }
-      }
-
+      // Log completion (verification was done earlier in collaborative mode)
+      const verificationNote = grokVerification ? ' [+COLLABORATIVE VERIFICATION]' : '';
       this.logger.log(
         `✅ Synthesiser complete - length: ${finalResponse.length} chars, ` +
         `cost: $${response.cost.toFixed(4)}, ` +
         `latency: ${response.latencyMs}ms, ` +
         `model: ${response.model}` +
-        `${verificationUsed ? ' [+GROK VERIFICATION]' : ''}`
+        verificationNote
       );
       
       return {
@@ -155,22 +172,4 @@ Generate a coherent, thoughtful, and **COMPREHENSIVE** response that:
     }
   }
 
-  /**
-   * Check if a query needs real-time verification from Grok
-   * Triggers for queries about current events, facts, recent news, etc.
-   */
-  private checkIfNeedsVerification(query: string): boolean {
-    const lowerQuery = query.toLowerCase();
-    
-    // Keywords that suggest need for real-time verification
-    const verificationKeywords = [
-      'latest', 'recent', 'current', 'today', 'now', 'update',
-      'news', 'happening', 'what is', 'who is', 'when did',
-      'fact check', 'verify', 'true', 'false', 'accurate',
-      'statistics', 'data', 'research', 'study', 'report',
-      '2024', '2025', 'this year', 'this month',
-    ];
-    
-    return verificationKeywords.some(keyword => lowerQuery.includes(keyword));
-  }
 }
