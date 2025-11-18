@@ -221,6 +221,16 @@ export class VCTTEngineService {
       state.state.regulation = 'normal';
     }
 
+    // === GROK PRE-COMMIT: Use Grok's verified facts directly if available ===
+    if (grokVerificationData && grokVerificationData.confidence >= 0.85) {
+      this.logger.log('🛡️  GROK PRE-COMMIT: High-confidence verification detected — boosting trust before synthesis');
+      this.logger.log(`   Grok confidence: ${grokVerificationData.confidence}, Pre-boost τ: ${state.state.trust_tau.toFixed(3)} → 0.85`);
+      
+      // Pre-boost trust to prevent safety valve from triggering
+      state.state.trust_tau = Math.max(state.state.trust_tau, 0.85);
+      state.state.regulation = 'normal'; // Grok verified = safe to proceed normally
+    }
+
     // === SYNTHESISER (Final Response Generation) ===
     this.logger.log('=== GENERATING FINAL RESPONSE ===');
     const responseObj = await this.synthesiserAgent.synthesize(messages, state, grokVerificationData);

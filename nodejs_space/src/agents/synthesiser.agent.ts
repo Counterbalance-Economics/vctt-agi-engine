@@ -118,6 +118,31 @@ Respond with verified facts only.`;
   ): Promise<{ content: string; metadata?: any }> {
     this.logger.log('💬 Synthesiser Agent - generating coherent response');
 
+    // 🛡️ GROK DIRECT COMMIT: If we have high-confidence Grok verification, use it directly
+    if (grokVerification && grokVerification.confidence >= 0.85 && grokVerification.hasDiscrepancy) {
+      this.logger.log('🛡️  GROK DIRECT COMMIT: Using high-confidence verified facts directly');
+      this.logger.log(`   Grok confidence: ${grokVerification.confidence}, bypassing normal synthesis`);
+      
+      // Build response directly from Grok's verified facts
+      const verifiedFactsText = grokVerification.verified_facts?.length > 0
+        ? `\n\nKey facts: ${grokVerification.verified_facts.join('; ')}`
+        : '';
+      
+      const directResponse = `${grokVerification.content}${verifiedFactsText}`;
+      
+      return {
+        content: directResponse,
+        metadata: {
+          model: 'grok-3-direct',
+          tokens_input: 0,
+          tokens_output: directResponse.length / 4, // Rough estimate
+          tokens_total: directResponse.length / 4,
+          cost_usd: 0.001,
+          latency_ms: 0,
+        },
+      };
+    }
+
     const conversationHistory = messages.map(m => ({
       role: m.role as 'user' | 'assistant' | 'system',
       content: m.content,
