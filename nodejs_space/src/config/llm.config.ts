@@ -19,7 +19,7 @@ export const LLMConfig = {
   models: {
     primary: 'gpt-4o',           // OpenAI GPT-4o - best reasoning
     fallback: 'claude-3-5-sonnet-20241022', // Claude 3.5 Sonnet - reliable fallback
-    verification: 'grok-beta',   // xAI Grok - real-time verification & web search
+    verification: 'grok-4.1',    // xAI Grok 4.1 (Nov 2025) - 3x fewer hallucinations, real-time verification
   },
   
   // Token limits and budgets
@@ -53,7 +53,7 @@ export const LLMConfig = {
       inputPer1k: 0.003,         // $3.00 per 1M input tokens
       outputPer1k: 0.015,        // $15.00 per 1M output tokens
     },
-    'grok-beta': {
+    'grok-4.1': {
       inputPer1k: 0.005,         // $5.00 per 1M input tokens (xAI pricing)
       outputPer1k: 0.015,        // $15.00 per 1M output tokens
     },

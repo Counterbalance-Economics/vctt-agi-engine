@@ -234,8 +234,8 @@ Be concise, accurate, and cite your sources when possible.`;
       const outputTokens = data.usage?.completion_tokens ?? 0;
       const totalTokens = data.usage?.total_tokens ?? inputTokens + outputTokens;
       
-      // Calculate cost
-      const modelCosts = LLMConfig.costs['grok-beta'];
+      // Calculate cost (using grok-4.1 pricing)
+      const modelCosts = LLMConfig.costs['grok-4.1'];
       const cost = 
         (inputTokens / 1000) * modelCosts.inputPer1k +
         (outputTokens / 1000) * modelCosts.outputPer1k;
