@@ -22,6 +22,9 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: false, // Allow unknown params (e.g., cache-busting _cb) - just strip them
       transform: true,
+      transformOptions: {
+        enableImplicitConversion: true, // Auto-convert string "50" → number 50
+      },
     }),
   );
 
