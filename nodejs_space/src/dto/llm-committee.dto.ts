@@ -27,7 +27,7 @@ export class LLMCommitteeQueryDto {
  * Model statistics for a single LLM
  */
 export class ModelStats {
-  @ApiProperty({ description: 'Model name', example: 'grok-4.1' })
+  @ApiProperty({ description: 'Model name', example: 'grok-4-0709' })
   model_name: string;
 
   @ApiProperty({ description: 'Number of times this model contributed', example: 47 })
