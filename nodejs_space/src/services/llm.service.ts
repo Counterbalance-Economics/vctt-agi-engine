@@ -252,7 +252,7 @@ Start your response with { and end with }. NO OTHER TEXT.`;
           temperature: 0.3, // Lower temperature for factual verification
           max_tokens: 2000,
           stream: false,
-          response_format: { type: "json_object" }, // Force JSON mode
+          // response_format: { type: "json_object" }, // REMOVED: Allow Markdown output for user-friendly responses
         }),
       });
       

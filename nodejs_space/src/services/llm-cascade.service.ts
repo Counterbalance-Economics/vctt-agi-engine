@@ -11,11 +11,11 @@ import { getMCPToolsForAgent } from '../config/mcp-tools.config';
  * This ensures 99.99% uptime even during provider outages.
  * 
  * Architecture:
- * - Analyst: RouteLLM Claude → Direct Claude → Grok-4-Fast → GPT-5 → GPT-4o
- * - Relational: GPT-5 → GPT-4o → Claude → Grok-4-Fast
- * - Ethics: GPT-5 → Claude → Grok-4-Fast → GPT-4o
- * - Synthesiser: RouteLLM Claude → GPT-5 → Direct Claude → Grok-4-Fast
- * - Verification: Grok-4-Fast → Claude (web search) → GPT-5
+ * - Analyst: RouteLLM Claude → Direct Claude → Grok-4.1 → GPT-5 → GPT-4o
+ * - Relational: GPT-5 → GPT-4o → Claude → Grok-4.1
+ * - Ethics: GPT-5 → Claude → Grok-4.1 → GPT-4o
+ * - Synthesiser: RouteLLM Claude → GPT-5 → Direct Claude → Grok-4.1
+ * - Verification: Grok-4.1 → Claude (web search) → GPT-5
  */
 
 interface LLMResponse {
@@ -85,7 +85,7 @@ export class LLMCascadeService {
     analyst: [
       { name: 'RouteLLM-Claude-MCP', tier: 1, call: this.callRouteLLMClaude.bind(this) },
       { name: 'Direct-Claude-MCP', tier: 2, call: this.callDirectClaude.bind(this) },
-      { name: 'Grok-4-Fast', tier: 3, call: this.callGrok.bind(this) },
+      { name: 'Grok-4.1', tier: 3, call: this.callGrok.bind(this) },
       { name: 'GPT-5', tier: 4, call: this.callGPT5.bind(this) },
       { name: 'GPT-4o', tier: 5, call: this.callGPT4o.bind(this) },
     ],
@@ -93,22 +93,22 @@ export class LLMCascadeService {
       { name: 'GPT-5', tier: 1, call: this.callGPT5.bind(this) },
       { name: 'GPT-4o', tier: 2, call: this.callGPT4o.bind(this) },
       { name: 'Direct-Claude', tier: 3, call: this.callDirectClaude.bind(this) },
-      { name: 'Grok-4-Fast', tier: 4, call: this.callGrok.bind(this) },
+      { name: 'Grok-4.1', tier: 4, call: this.callGrok.bind(this) },
     ],
     ethics: [
       { name: 'GPT-5', tier: 1, call: this.callGPT5.bind(this) },
       { name: 'Direct-Claude', tier: 2, call: this.callDirectClaude.bind(this) },
-      { name: 'Grok-4-Fast', tier: 3, call: this.callGrok.bind(this) },
+      { name: 'Grok-4.1', tier: 3, call: this.callGrok.bind(this) },
       { name: 'GPT-4o', tier: 4, call: this.callGPT4o.bind(this) },
     ],
     synthesiser: [
       { name: 'RouteLLM-Claude-MCP', tier: 1, call: this.callRouteLLMClaude.bind(this) },
       { name: 'GPT-5', tier: 2, call: this.callGPT5.bind(this) },
       { name: 'Direct-Claude', tier: 3, call: this.callDirectClaude.bind(this) },
-      { name: 'Grok-4-Fast', tier: 4, call: this.callGrok.bind(this) },
+      { name: 'Grok-4.1', tier: 4, call: this.callGrok.bind(this) },
     ],
     verification: [
-      { name: 'Grok-4-Fast-WebSearch', tier: 1, call: this.callGrok.bind(this) },
+      { name: 'Grok-4.1-WebSearch', tier: 1, call: this.callGrok.bind(this) },
       { name: 'Direct-Claude-WebSearch', tier: 2, call: this.callDirectClaude.bind(this) },
       { name: 'GPT-5', tier: 3, call: this.callGPT5.bind(this) },
     ],
@@ -136,6 +136,7 @@ export class LLMCascadeService {
     temperature: number,
     agentRole: string,
     enableTools: boolean = false,
+    responseFormat: 'text' | 'json' = 'text',  // NEW: Support markdown/text output
   ): Promise<LLMResponse> {
     let cascade = this.cascades[agentRole] || this.cascades.analyst;
     
@@ -143,7 +144,7 @@ export class LLMCascadeService {
     if (this.requiresRealTimeData(messages)) {
       this.logger.log(`🔍 Factual query detected - prioritizing Grok for real-time accuracy`);
       
-      // Reorder cascade: Put Grok-4-Fast as Tier 1 for factual queries
+      // Reorder cascade: Put Grok-4.1 as Tier 1 for factual queries
       const grokProvider = cascade.find(p => p.name.includes('Grok'));
       if (grokProvider) {
         cascade = [
@@ -433,7 +434,7 @@ export class LLMCascadeService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'grok-4-0709',
+        model: 'grok-4.1',
         messages: [{ role: 'system', content: systemPrompt }, ...messages],
         temperature,
       }),
@@ -445,7 +446,7 @@ export class LLMCascadeService {
     }
 
     const data = await response.json();
-    return this.parseOpenAIResponse(data, 'grok-4-0709');
+    return this.parseOpenAIResponse(data, 'grok-4.1');
   }
 
   /**

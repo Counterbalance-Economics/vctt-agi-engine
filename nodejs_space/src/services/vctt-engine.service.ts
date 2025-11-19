@@ -234,7 +234,7 @@ export class VCTTEngineService {
     this.logger.log('=== STARTING VCTT PIPELINE ===');
 
     // 🍄 PRE-JAM TRUTH SWEEP: Seed the mycelium before the band starts playing
-    this.logger.log('🍄 Running pre-jam truth sweep with Grok-4-Fast-Reasoning...');
+    this.logger.log('🍄 Running pre-jam truth sweep with Grok-4.1...');
     const sessionHistory = messages
       .filter(m => m.role !== 'system')
       .map(m => `${m.role}: ${m.content}`)
@@ -394,7 +394,7 @@ export class VCTTEngineService {
       this.trackContribution(sessionId, 'analyst', 'claude', !!bandJamResults.results.analyst, false);
       this.trackContribution(sessionId, 'relational', 'gpt-5', !!bandJamResults.results.relational, false);
       this.trackContribution(sessionId, 'ethics', 'gpt-5', !!bandJamResults.results.ethics, false);
-      this.trackContribution(sessionId, 'verification', 'grok-4-0709', !!bandJamResults.results.verification, false);
+      this.trackContribution(sessionId, 'verification', 'grok-4.1', !!bandJamResults.results.verification, false);
       
       this.logger.log(`📊 Tracked contributions: Analyst=${bandJamResults.weights.analyst.toFixed(2)}, Relational=${bandJamResults.weights.relational.toFixed(2)}, Ethics=${bandJamResults.weights.ethics.toFixed(2)}, Verification=${bandJamResults.weights.verification.toFixed(2)}`);
     }

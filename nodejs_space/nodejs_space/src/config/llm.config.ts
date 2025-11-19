@@ -98,6 +98,10 @@ export const LLMConfig = {
       inputPer1k: 0.002,         // $2.00 per 1M input tokens (Nov 2025 pricing - 60% cheaper!)
       outputPer1k: 0.010,        // $10.00 per 1M output tokens (33% cheaper!)
     },
+    'grok-4-0709': {
+      inputPer1k: 0.002,         // $2.00 per 1M input tokens (Grok-4 base model)
+      outputPer1k: 0.010,        // $10.00 per 1M output tokens
+    },
     // Default for auto-routed models (RouteLLM will pick optimal Claude)
     '': {
       inputPer1k: 0.003,         // $3.00 per 1M input tokens (Claude pricing)
