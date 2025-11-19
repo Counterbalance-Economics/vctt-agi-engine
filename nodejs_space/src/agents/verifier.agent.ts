@@ -83,7 +83,7 @@ export class VerifierAgent {
           corrections: parsed.corrections || [],
           latency: Date.now() - startTime,
           cost: verification.cost,
-          model: 'grok-4-fast-reasoning',
+          model: 'grok-4-0709',
         };
 
         this.logger.log(`✅ Verifier JSON parsed successfully`);
@@ -100,7 +100,7 @@ export class VerifierAgent {
           corrections: [],
           latency: Date.now() - startTime,
           cost: verification.cost,
-          model: 'grok-4-fast-reasoning',
+          model: 'grok-4-0709',
         };
       }
 
@@ -237,7 +237,7 @@ ${finalResponse}
           ...parsed,
           latency: Date.now() - startTime,
           cost: verification.cost,
-          model: 'grok-4-fast-reasoning',
+          model: 'grok-4-0709',
         };
       } catch (parseError) {
         verifiedData = {
@@ -247,7 +247,7 @@ ${finalResponse}
           sources: ['Grok post-synthesis check'],
           latency: Date.now() - startTime,
           cost: verification.cost,
-          model: 'grok-4-fast-reasoning',
+          model: 'grok-4-0709',
         };
       }
 
