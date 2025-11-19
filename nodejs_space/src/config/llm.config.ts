@@ -32,10 +32,11 @@ export const LLMConfig = {
     verification: 'grok-beta',                  // Grok-beta for real-time verification
   },
   
-  // MCP Tool Configuration (disabled for now - causing schema errors)
+  // MCP Tool Configuration (ENABLED - schemas fixed per Claude requirements)
+  // Tools are now defined in mcp-tools.config.ts with proper JSON Schema compliance
   mcpTools: {
-    analyst: [],
-    synthesiser: [],
+    analyst: ['query_database', 'calculate'],
+    synthesiser: ['web_search', 'analyze_trust', 'query_database'],
   },
   
   // Token limits and budgets

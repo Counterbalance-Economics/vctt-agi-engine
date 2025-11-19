@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { LLMConfig } from '../config/llm.config';
 import { LLMCommitteeService } from './llm-committee.service';
+import { getMCPToolsForAgent } from '../config/mcp-tools.config';
 
 /**
  * LLM Cascade Service - Production-Grade Multi-Provider Resilience
@@ -165,8 +166,9 @@ export class LLMCascadeService {
         this.logger.log(`→ Tier ${provider.tier}: Trying ${provider.name}...`);
         const startTime = Date.now();
         
+        // Get MCP tools if enabled for this agent
         const tools = (enableTools && (agentRole === 'analyst' || agentRole === 'synthesiser'))
-          ? (LLMConfig.mcpTools as any)[agentRole]
+          ? getMCPToolsForAgent(agentRole)
           : undefined;
 
         const result = await provider.call(messages, systemPrompt, temperature, tools);
@@ -260,18 +262,30 @@ export class LLMCascadeService {
       throw new Error('RouteLLM API key not configured');
     }
 
+    // PAYLOAD SANITIZATION: RouteLLM/Claude strict mode
+    // Only include supported params to avoid 500 errors
+    const sanitizedPayload: any = {
+      model: '', // Empty = auto-route to best Claude (Haiku 4.5)
+      messages: [{ role: 'system', content: systemPrompt }, ...messages],
+      max_tokens: 4096,
+    };
+
+    // Only add tools if they exist and are properly formatted
+    if (tools && tools.length > 0) {
+      sanitizedPayload.tools = tools;
+    }
+
+    // NOTE: Removed temperature, top_p, frequency_penalty, presence_penalty
+    // RouteLLM and Claude use adaptive defaults - custom params cause 500s
+
     const response = await fetch(`${LLMConfig.baseUrl}`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
+        'x-abacus-version': '2025-11-01', // Latest stable version
       },
-      body: JSON.stringify({
-        model: '', // Empty = auto-route to best Claude
-        messages: [{ role: 'system', content: systemPrompt }, ...messages],
-        temperature,
-        tools,
-      }),
+      body: JSON.stringify(sanitizedPayload),
     });
 
     if (!response.ok) {
@@ -295,6 +309,35 @@ export class LLMCascadeService {
       throw new Error('Anthropic API key not configured');
     }
 
+    // Format payload for Claude API (strict compliance)
+    const payload: any = {
+      model: 'claude-haiku-4-5',
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages,
+    };
+
+    // Only add tools if they exist and are properly formatted
+    // Claude requires strict JSON Schema compliance (array items, no extras)
+    // Convert OpenAI format (type: function, function: {...}) to Claude format
+    if (tools && tools.length > 0) {
+      payload.tools = tools.map((tool: any) => {
+        // If tool is in OpenAI format (has type: 'function'), convert to Claude format
+        if (tool.type === 'function' && tool.function) {
+          return {
+            name: tool.function.name,
+            description: tool.function.description,
+            input_schema: tool.function.parameters, // Claude uses 'input_schema', OpenAI uses 'parameters'
+          };
+        }
+        // Otherwise assume it's already in Claude format
+        return tool;
+      });
+    }
+
+    // NOTE: Temperature removed - Claude Haiku 4.5 uses adaptive defaults
+    // Custom temperature causes compatibility issues with MCP tools
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -302,14 +345,7 @@ export class LLMCascadeService {
         'anthropic-version': '2023-06-01',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5',
-        max_tokens: 4096,
-        temperature,
-        system: systemPrompt,
-        messages,
-        tools,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
