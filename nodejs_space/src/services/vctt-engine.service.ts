@@ -7,6 +7,7 @@ import { Conversation } from '../entities/conversation.entity';
 import { Message } from '../entities/message.entity';
 import { InternalState, StateData } from '../entities/internal-state.entity';
 import { LLMCommitteeService } from './llm-committee.service';
+import { LLMCascadeService } from './llm-cascade.service';
 import { AnalystAgent } from '../agents/analyst.agent';
 import { RelationalAgent } from '../agents/relational.agent';
 import { EthicsAgent } from '../agents/ethics.agent';
@@ -35,6 +36,7 @@ export class VCTTEngineService {
     @Optional() @InjectRepository(Message) private msgRepo: Repository<Message> | null,
     @Optional() @InjectRepository(InternalState) private stateRepo: Repository<InternalState> | null,
     @Optional() private committeeService: LLMCommitteeService | null,
+    private llmCascade: LLMCascadeService,
     private analystAgent: AnalystAgent,
     private relationalAgent: RelationalAgent,
     private ethicsAgent: EthicsAgent,
@@ -175,6 +177,11 @@ export class VCTTEngineService {
    */
   async processStep(sessionId: string, input: string): Promise<any> {
     this.logger.log(`Processing step for session: ${sessionId}`);
+
+    // Set session ID for LLM contribution tracking
+    if (this.llmCascade) {
+      this.llmCascade.setSessionId(sessionId);
+    }
 
     let state: any;
     let messages: any[];

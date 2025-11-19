@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { LLMConfig } from '../config/llm.config';
+import { LLMCommitteeService } from './llm-committee.service';
 
 /**
  * LLM Cascade Service - Production-Grade Multi-Provider Resilience
@@ -35,8 +36,26 @@ interface Provider {
 export class LLMCascadeService {
   private readonly logger = new Logger(LLMCascadeService.name);
 
+  // Track current session for contribution recording
+  private currentSessionId: string | null = null;
+
   // Track provider health for smart routing
   private providerHealth: Map<string, { failures: number; lastFailure: number }> = new Map();
+
+  constructor(
+    @Optional() private readonly committeeService: LLMCommitteeService | null,
+  ) {
+    if (!committeeService) {
+      this.logger.warn('⚠️  LLMCommitteeService not available - contribution tracking disabled');
+    }
+  }
+
+  /**
+   * Set the current session ID for contribution tracking
+   */
+  setSessionId(sessionId: string | null): void {
+    this.currentSessionId = sessionId;
+  }
 
   /**
    * Cascade definitions for each role
@@ -144,6 +163,22 @@ export class LLMCascadeService {
         // Reset health on success
         this.recordSuccess(provider.name);
 
+        // Track contribution to LLM Committee (if available)
+        if (this.committeeService && this.currentSessionId) {
+          await this.committeeService.recordContribution({
+            session_id: this.currentSessionId,
+            model_name: result.model,
+            agent_name: agentRole,
+            contributed: true,
+            offline: false,
+            tokens_used: result.tokensUsed.total,
+            cost_usd: result.cost,
+            latency_ms: latency,
+          }).catch(err => {
+            this.logger.debug(`Failed to record contribution: ${err.message}`);
+          });
+        }
+
         return {
           ...result,
           usedProvider: provider.name,
@@ -154,6 +189,27 @@ export class LLMCascadeService {
           `❌ Tier ${provider.tier} (${provider.name}) failed: ${error.message}`
         );
         this.recordFailure(provider.name);
+        
+        // Track offline contribution (if available)
+        if (this.committeeService && this.currentSessionId) {
+          const errorType = error.response?.status 
+            ? `${error.response.status}xx` 
+            : (error.message.includes('timeout') ? 'timeout' : 'error');
+          
+          await this.committeeService.recordContribution({
+            session_id: this.currentSessionId,
+            model_name: provider.name,
+            agent_name: agentRole,
+            contributed: false,
+            offline: true,
+            error_type: errorType,
+            tokens_used: 0,
+            cost_usd: 0,
+            latency_ms: 0,
+          }).catch(err => {
+            this.logger.debug(`Failed to record offline contribution: ${err.message}`);
+          });
+        }
         
         // Continue to next tier
         continue;
