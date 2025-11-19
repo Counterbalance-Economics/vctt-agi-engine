@@ -1,0 +1,89 @@
+
+# DEEPAGENT SESSION CONTINUITY FILE
+# This file ensures consistency across DeepAgent sessions
+
+## PROJECT METADATA
+PROJECT_NAME=vctt-agi-engine
+PROJECT_TYPE=nodejs_nestjs_backend
+PROJECT_PATH=/home/ubuntu/vctt_agi_engine
+NODEJS_PATH=/home/ubuntu/vctt_agi_engine/nodejs_space
+
+## GIT CONFIGURATION
+REPOSITORY=https://github.com/Counterbalance-Economics/vctt-agi-engine.git
+PRIMARY_BRANCH=master
+GITHUB_BRANCH=main
+# Note: Both master and main are kept in sync (master is local, main is GitHub default)
+
+## DEPLOYMENT
+PRODUCTION_URL=https://vctt-agi-phase3-complete.abacusai.app
+PREVIEW_PORT=8000
+NODE_ENV=production
+
+## CURRENT ARCHITECTURE
+PHASE=3.5
+MODE=Band Jam Mode (5-agent collaborative)
+AGENTS=Planner,Analyst,Relational,Ethics,Verifier
+
+## AGENT MODELS (Current Configuration)
+PLANNER_MODEL=gpt-4o
+ANALYST_MODEL=claude-haiku-4-5
+RELATIONAL_MODEL=gpt-5.1
+ETHICS_MODEL=gpt-5.1
+VERIFIER_MODEL=grok-4.1
+
+## IMPORTANT RULES FOR DEEPAGENT
+# 1. ALWAYS work on the "master" branch locally
+# 2. ALWAYS push to both "master" and "main" branches on GitHub
+# 3. NEVER create new branches without explicit user approval
+# 4. NEVER switch branches without explicit user instruction
+# 5. The nodejs_space/ directory contains the NestJS backend code
+# 6. Build command: cd nodejs_space && npm run build
+# 7. Server runs on port 8000 (NODE_ENV=production node dist/main.js)
+# 8. API documentation available at /api-docs
+
+## LAST SUCCESSFUL CHECKPOINT
+CHECKPOINT_DATE=2025-11-19
+CHECKPOINT_DESCRIPTION=Upgraded to Grok 4.1 verifier
+CHECKPOINT_COMMIT=138aefa
+
+## KEY FEATURES IMPLEMENTED
+- ✅ Band Jam Mode (parallel agent execution)
+- ✅ 5-agent architecture (Planner, Analyst, Relational, Ethics, Verifier)
+- ✅ Real LLM integration (GPT-4o, GPT-5.1, Claude Haiku 4.5, Grok 4.1)
+- ✅ Cost tracking and analytics
+- ✅ Trust metrics (τ scores)
+- ✅ PostgreSQL persistence
+- ✅ Swagger API documentation
+- ✅ Production deployment
+
+## WORKFLOW FOR NEW SESSIONS
+1. Check current branch: `git branch`
+2. Verify on master: If not, DO NOT switch unless user approves
+3. Pull latest: `git pull origin master`
+4. Make changes in nodejs_space/src/
+5. Build: `cd nodejs_space && npm run build`
+6. Test: Start server and verify functionality
+7. Commit: `git add . && git commit -m "Description"`
+8. Push: `git push origin master && git push origin master:main`
+9. Save checkpoint: Use build_and_save_nodejs_service_checkpoint tool
+
+## CRITICAL WARNINGS
+⚠️  DO NOT change branches without explicit user approval
+⚠️  DO NOT create feature branches unless requested
+⚠️  DO NOT modify Python backend (vctt_agi/) - it's legacy/unused
+⚠️  DO NOT change port from 8000
+⚠️  ALWAYS maintain both master and main branch sync
+⚠️  ALWAYS verify build success before pushing
+
+## SESSION HANDOFF CHECKLIST
+When starting a new session, verify:
+- [ ] Current branch is master
+- [ ] Working directory is clean (git status)
+- [ ] Server can start (node dist/main.js)
+- [ ] API documentation loads (/api-docs)
+- [ ] All tests pass (npm test)
+
+## CONTACT
+Repository: https://github.com/Counterbalance-Economics/vctt-agi-engine
+Owner: Counterbalance-Economics
+Last Updated: 2025-11-19 by DeepAgent
