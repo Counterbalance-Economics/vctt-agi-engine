@@ -21,83 +21,21 @@ export const LLMConfig = {
   // HYBRID MODEL CONFIGURATION (Per-Agent)
   models: {
     // Agent-specific models (leveraging strengths)
-    analyst: '',                                // Empty = RouteLLM auto-picks best Claude (with MCP)
-    relational: 'gpt-5',                        // GPT-5 for emotional nuance
-    ethics: 'gpt-5',                            // GPT-5 for moral reasoning
-    synthesiser: '',                            // Empty = RouteLLM auto-picks best Claude (with MCP)
+    analyst: 'gpt-4o',                          // GPT-4o for analysis (Claude having issues)
+    relational: 'gpt-4o',                       // GPT-4o for emotional nuance
+    ethics: 'gpt-4o',                           // GPT-4o for moral reasoning
+    synthesiser: 'gpt-4o',                      // GPT-4o for synthesis
     
     // Legacy/fallback models
-    primary: 'gpt-5',                           // Default for non-agent use
-    fallback: 'gpt-4o',                         // Fallback to GPT-4o (more stable)
-    verification: 'grok-3',                     // Grok-3 for real-time verification (free tier)
+    primary: 'gpt-4o',                          // Default for non-agent use
+    fallback: 'gpt-4o-mini',                    // Fallback to GPT-4o-mini (faster/cheaper)
+    verification: 'grok-beta',                  // Grok-beta for real-time verification
   },
   
-  // MCP Tool Configuration (for Claude agents)
+  // MCP Tool Configuration (disabled for now - causing schema errors)
   mcpTools: {
-    analyst: [
-      {
-        type: 'function',
-        function: {
-          name: 'query_database',
-          description: 'Query PostgreSQL database for trust metrics, session history, and patterns',
-          parameters: {
-            type: 'object',
-            properties: {
-              query: { type: 'string', description: 'SQL query to execute' },
-              params: { type: 'array', description: 'Query parameters' },
-            },
-            required: ['query'],
-          },
-        },
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'calculate',
-          description: 'Execute mathematical calculations or code for analysis',
-          parameters: {
-            type: 'object',
-            properties: {
-              expression: { type: 'string', description: 'Math expression or code to execute' },
-              language: { type: 'string', enum: ['python', 'javascript'], description: 'Execution language' },
-            },
-            required: ['expression'],
-          },
-        },
-      },
-    ],
-    synthesiser: [
-      {
-        type: 'function',
-        function: {
-          name: 'web_search',
-          description: 'Search the web for current information (complement to Grok verification)',
-          parameters: {
-            type: 'object',
-            properties: {
-              query: { type: 'string', description: 'Search query' },
-              num_results: { type: 'number', description: 'Number of results (1-10)', default: 5 },
-            },
-            required: ['query'],
-          },
-        },
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'format_output',
-          description: 'Format output with markdown, code blocks, or structured data',
-          parameters: {
-            type: 'object',
-            properties: {
-              content: { type: 'string', description: 'Content to format' },
-              format: { type: 'string', enum: ['markdown', 'json', 'code'], description: 'Output format' },
-            },
-            required: ['content', 'format'],
-          },
-        },
-      },
-    ],
+    analyst: [],
+    synthesiser: [],
   },
   
   // Token limits and budgets

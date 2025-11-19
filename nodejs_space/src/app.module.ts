@@ -11,6 +11,7 @@ import { SessionController } from './controllers/session.controller';
 import { HealthController } from './controllers/health.controller';
 import { AnalyticsController } from './controllers/analytics.controller';
 import { LLMCommitteeController } from './controllers/llm-committee.controller';
+import { PlannerAgent } from './agents/planner.agent';
 import { AnalystAgent } from './agents/analyst.agent';
 import { RelationalAgent } from './agents/relational.agent';
 import { EthicsAgent } from './agents/ethics.agent';
@@ -60,6 +61,7 @@ import { LLMContribution } from './entities/llm-contribution.entity';
     LLMCommitteeService,
     
     // Agents
+    PlannerAgent,
     AnalystAgent,
     RelationalAgent,
     EthicsAgent,

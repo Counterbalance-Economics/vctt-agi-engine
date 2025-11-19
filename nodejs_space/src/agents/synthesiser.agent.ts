@@ -114,9 +114,17 @@ Respond with verified facts only.`;
   async synthesize(
     messages: Message[], 
     state: InternalState, 
-    grokVerification: any = null
+    grokVerification: any = null,
+    bandJamResults: any = null
   ): Promise<{ content: string; metadata?: any }> {
-    this.logger.log('💬 Synthesiser Agent - generating coherent response');
+    this.logger.log('💬 Synthesiser Agent - generating coherent response with Band Jam synthesis');
+
+    // Log Band Jam results if available
+    if (bandJamResults) {
+      this.logger.log('🎼 Band Jam Results Available:');
+      this.logger.log(`   Total latency: ${bandJamResults.totalLatency}ms`);
+      this.logger.log(`   Weights: Analyst=${(bandJamResults.weights.analyst*100).toFixed(0)}%, Relational=${(bandJamResults.weights.relational*100).toFixed(0)}%, Ethics=${(bandJamResults.weights.ethics*100).toFixed(0)}%, Verification=${(bandJamResults.weights.verification*100).toFixed(0)}%`);
+    }
 
     // 🛡️ GROK DIRECT COMMIT: If we have high-confidence Grok verification, use it directly
     if (grokVerification && grokVerification.confidence >= 0.85 && grokVerification.hasDiscrepancy) {
@@ -147,6 +155,40 @@ Respond with verified facts only.`;
       role: m.role as 'user' | 'assistant' | 'system',
       content: m.content,
     }));
+
+    // Build Band Jam context with weighted contributions
+    let bandJamContext = '';
+    if (bandJamResults && bandJamResults.taskPlan) {
+      const tasks = bandJamResults.taskPlan.tasks;
+      bandJamContext = `\n\n🎼 **BAND JAM MODE - WEIGHTED AGENT CONTRIBUTIONS:**
+
+You are synthesizing the output from ALL 4 agents working in parallel. Each agent completed their assigned subtask:
+
+1. **Analyst** (Claude, ${(bandJamResults.weights.analyst*100).toFixed(0)}% weight):
+   Task: ${tasks[0].subtask}
+   ${bandJamResults.results.analyst ? '✅ Completed' : '❌ Failed'}
+
+2. **Relational** (GPT-5, ${(bandJamResults.weights.relational*100).toFixed(0)}% weight):
+   Task: ${tasks[1].subtask}
+   ${bandJamResults.results.relational ? '✅ Completed' : '❌ Failed'}
+
+3. **Ethics** (GPT-5, ${(bandJamResults.weights.ethics*100).toFixed(0)}% weight):
+   Task: ${tasks[2].subtask}
+   ${bandJamResults.results.ethics ? '✅ Completed' : '❌ Failed'}
+
+4. **Verification** (Grok-3, ${(bandJamResults.weights.verification*100).toFixed(0)}% weight):
+   Task: ${tasks[3].subtask}
+   ${bandJamResults.results.verification ? '✅ Completed' : '❌ Failed'}
+
+**Total Band Latency:** ${bandJamResults.totalLatency}ms
+
+**SYNTHESIS INSTRUCTIONS:**
+- Integrate insights from ALL agents proportionally to their weights
+- If an agent failed, compensate by relying more on others
+- Create a unified response that reflects the collaborative effort
+- DO NOT mention individual agents by name in the final response (this is internal)
+- The user should see a seamless, coherent answer, not a report of agent activities`;
+    }
 
     // Build system prompt with optional Grok verification data
     let verificationContext = '';
@@ -235,7 +277,7 @@ Generate a coherent, thoughtful, and **COMPREHENSIVE** response that:
 
 CRITICAL: Your response MUST be valid JSON only. No prose, no explanations, no markdown.
 Start with { and end with }. If you write anything other than JSON, the system will fail.
-${verificationContext}`;
+${bandJamContext}${verificationContext}`;
 
     try {
       const response = await this.llmCascade.generateCompletion(

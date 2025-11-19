@@ -229,36 +229,25 @@ export class VCTTEngineService {
 
     this.logger.log('=== STARTING VCTT PIPELINE ===');
 
-    // 🎯 PHASE 3.5: Detect if query needs real-time verification (collaborative mode)
-    const needsFactVerification = this.detectFactualQuery(input);
-    let grokVerificationData: any = null;
+    // 🎼 BAND JAM MODE: Always run all agents in parallel with task decomposition
+    this.logger.log('🎵 Starting Band Jam Mode - all agents will collaborate simultaneously');
     
-    if (needsFactVerification) {
-      this.logger.log('🔍 Factual query detected - enabling collaborative verification mode');
-      
-      // Run Grok verification EARLY (in parallel with agents)
-      const verificationPromise = this.synthesiserAgent.performEarlyVerification(input, messages);
-      
-      // Run agents in parallel while verification happens
-      await Promise.all([
-        this.runAgents(messages, state, true), // Enable parallel mode
-        verificationPromise.then(result => { grokVerificationData = result; }),
-      ]);
-      
-      this.logger.log(`✅ Collaborative verification complete - trust boost possible`);
-      
-      // If Grok found issues, flag for re-analysis
-      if (grokVerificationData && grokVerificationData.hasDiscrepancy) {
-        this.logger.warn('⚠️ Grok flagged discrepancies - triggering re-analysis');
+    const bandJamResults = await this.runAgents(messages, state, true);
+    
+    // Extract verification data for trust adjustment
+    const grokVerificationData = bandJamResults.results.verification;
+    
+    // Adjust trust based on verification results
+    if (grokVerificationData) {
+      if (grokVerificationData.hasDiscrepancy) {
+        this.logger.warn('⚠️ Verification flagged discrepancies - adjusting trust metrics');
         state.state.contradiction = Math.max(state.state.contradiction, 0.6);
         state.state.trust_tau = Math.min(state.state.trust_tau, 0.75);
-      } else if (grokVerificationData) {
+      } else {
         // Boost trust if verification confirms accuracy
         state.state.trust_tau = Math.min(1.0, state.state.trust_tau + 0.05);
+        this.logger.log(`✅ Verification confirmed accuracy - trust boosted to τ=${state.state.trust_tau.toFixed(3)}`);
       }
-    } else {
-      // === RUN AGENTS (Standard Sequential Mode) ===
-      await this.runAgents(messages, state, false);
     }
 
     // === RUN MODULES (Initial Pass) ===
@@ -297,9 +286,9 @@ export class VCTTEngineService {
       state.state.regulation = 'normal'; // Grok verified = safe to proceed normally
     }
 
-    // === SYNTHESISER (Final Response Generation) ===
-    this.logger.log('=== GENERATING FINAL RESPONSE ===');
-    const responseObj = await this.synthesiserAgent.synthesize(messages, state, grokVerificationData);
+    // === SYNTHESISER (Final Response Generation with Weighted Aggregation) ===
+    this.logger.log('=== GENERATING FINAL RESPONSE (Weighted Band Synthesis) ===');
+    const responseObj = await this.synthesiserAgent.synthesize(messages, state, grokVerificationData, bandJamResults);
     const response = responseObj.content;
 
     // 🚨 GROK TRUTH OVERRIDE: If we hit max repairs with low trust, but Grok was used, trust it!
@@ -350,24 +339,21 @@ export class VCTTEngineService {
 
     this.logger.log(`=== PIPELINE COMPLETE === τ=${state.state.trust_tau.toFixed(3)}, repairs=${state.state.repair_count}`);
 
-    // Track LLM contributions for transparency
-    // MVP: Track key models that participated
-    if (needsFactVerification) {
-      // Grok-3 was used for verification
-      this.trackContribution(sessionId, 'verification', 'grok-3', true, false);
+    // Track LLM contributions from Band Jam Mode
+    // All 4 agents always participate now, track them with their actual weights
+    if (bandJamResults && bandJamResults.weights) {
+      this.trackContribution(sessionId, 'analyst', 'claude', !!bandJamResults.results.analyst, false);
+      this.trackContribution(sessionId, 'relational', 'gpt-5', !!bandJamResults.results.relational, false);
+      this.trackContribution(sessionId, 'ethics', 'gpt-5', !!bandJamResults.results.ethics, false);
+      this.trackContribution(sessionId, 'verification', 'grok-3', !!bandJamResults.results.verification, false);
+      
+      this.logger.log(`📊 Tracked contributions: Analyst=${bandJamResults.weights.analyst.toFixed(2)}, Relational=${bandJamResults.weights.relational.toFixed(2)}, Ethics=${bandJamResults.weights.ethics.toFixed(2)}, Verification=${bandJamResults.weights.verification.toFixed(2)}`);
     }
     
     // Track synthesiser model
     const synthModel = responseObj.metadata?.model || 'claude';
     this.trackContribution(sessionId, 'synthesiser', synthModel, true, false, undefined, 
       responseObj.metadata?.cost_usd, responseObj.metadata?.latency_ms);
-    
-    // Track primary models for agents (based on cascade configuration)
-    // Using actual model names from llm.config.ts (Phase 3)
-    this.trackContribution(sessionId, 'analyst', 'claude', true, false);
-    this.trackContribution(sessionId, 'relational', 'gpt-5', true, false);
-    this.trackContribution(sessionId, 'ethics', 'gpt-5', true, false);
-    this.trackContribution(sessionId, 'verifier', 'grok-3', true, false);
 
     // Flush all tracked contributions to database
     await this.flushContributions(sessionId);
@@ -444,27 +430,91 @@ export class VCTTEngineService {
   }
 
   /**
-   * Run all agents - with optional concurrent mode for factual queries
+   * Run all agents in TRUE BAND JAM MODE
+   * - Planner decomposes query into subtasks
+   * - All 4 agents run in parallel with specific assignments
+   * - Results are weighted and combined
    */
-  private async runAgents(messages: Message[], state: InternalState, enableParallelVerification = false): Promise<void> {
-    this.logger.log('Running all agents...');
+  private async runAgents(messages: Message[], state: InternalState, enableParallelVerification = false): Promise<any> {
+    this.logger.log('🎼 BAND JAM MODE: Starting collaborative multi-agent execution...');
     
-    if (enableParallelVerification) {
-      // PHASE 3.5: Concurrent mode - run Analyst + Grok in parallel
-      this.logger.log('🎯 Collaborative mode: Running Analyst + Ethics + Relational in parallel');
-      await Promise.all([
-        this.analystAgent.analyze(messages, state),
-        this.relationalAgent.analyze(messages, state),
-        this.ethicsAgent.analyze(messages, state),
-      ]);
-    } else {
-      // Original sequential mode
-      await this.analystAgent.analyze(messages, state);
-      await this.relationalAgent.analyze(messages, state);
-      await this.ethicsAgent.analyze(messages, state);
-    }
+    // Get the latest user query
+    const latestUserMessage = messages.filter(m => m.role === 'user').pop();
+    const query = latestUserMessage?.content || '';
     
-    this.logger.log('All agents completed');
+    // Step 1: Planner decomposes query into parallel subtasks
+    const taskPlan = await this.plannerAgent.plan(query, messages);
+    
+    this.logger.log(`🎯 Task plan strategy: ${taskPlan.strategy}`);
+    this.logger.log(`   Analyst weight: ${(taskPlan.tasks[0].weight * 100).toFixed(0)}%`);
+    this.logger.log(`   Relational weight: ${(taskPlan.tasks[1].weight * 100).toFixed(0)}%`);
+    this.logger.log(`   Ethics weight: ${(taskPlan.tasks[2].weight * 100).toFixed(0)}%`);
+    this.logger.log(`   Verification weight: ${(taskPlan.tasks[3].weight * 100).toFixed(0)}%`);
+    
+    // Step 2: Execute all agents in parallel with their specific subtasks
+    this.logger.log('🎸🎹🎷🥁 All band members playing simultaneously...');
+    
+    const startTime = Date.now();
+    
+    const [analystResult, relationalResult, ethicsResult, verificationResult] = await Promise.all([
+      // Analyst - enriched with subtask
+      this.analystAgent.analyze(messages, state, taskPlan.tasks[0].subtask).catch(err => {
+        this.logger.error(`❌ Analyst failed: ${err.message}`);
+        return null;
+      }),
+      
+      // Relational - enriched with subtask
+      this.relationalAgent.analyze(messages, state, taskPlan.tasks[1].subtask).catch(err => {
+        this.logger.error(`❌ Relational failed: ${err.message}`);
+        return null;
+      }),
+      
+      // Ethics - enriched with subtask
+      this.ethicsAgent.analyze(messages, state, taskPlan.tasks[2].subtask).catch(err => {
+        this.logger.error(`❌ Ethics failed: ${err.message}`);
+        return null;
+      }),
+      
+      // Verification (Grok) - enriched with subtask
+      this.synthesiserAgent.performEarlyVerification(taskPlan.tasks[3].subtask, messages).catch(err => {
+        this.logger.error(`❌ Verification failed: ${err.message}`);
+        return null;
+      }),
+    ]);
+    
+    const elapsed = Date.now() - startTime;
+    this.logger.log(`✅ Band jam complete in ${elapsed}ms (${(elapsed / 1000).toFixed(2)}s)`);
+    
+    // Step 3: Log individual contributions for analytics
+    const contributions = [
+      { agent: 'analyst', weight: taskPlan.tasks[0].weight, success: !!analystResult },
+      { agent: 'relational', weight: taskPlan.tasks[1].weight, success: !!relationalResult },
+      { agent: 'ethics', weight: taskPlan.tasks[2].weight, success: !!ethicsResult },
+      { agent: 'verification', weight: taskPlan.tasks[3].weight, success: !!verificationResult },
+    ];
+    
+    contributions.forEach(c => {
+      const status = c.success ? '✅' : '❌';
+      this.logger.log(`   ${status} ${c.agent}: ${(c.weight * 100).toFixed(0)}% contribution`);
+    });
+    
+    // Step 4: Return aggregated results for synthesizer
+    return {
+      taskPlan,
+      results: {
+        analyst: analystResult,
+        relational: relationalResult,
+        ethics: ethicsResult,
+        verification: verificationResult,
+      },
+      weights: {
+        analyst: taskPlan.tasks[0].weight,
+        relational: taskPlan.tasks[1].weight,
+        ethics: taskPlan.tasks[2].weight,
+        verification: taskPlan.tasks[3].weight,
+      },
+      totalLatency: elapsed,
+    };
   }
 
   /**

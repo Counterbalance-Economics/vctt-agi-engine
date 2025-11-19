@@ -11,15 +11,22 @@ export class EthicsAgent {
 
   constructor(private llmService: LLMService, private llmCascade: LLMCascadeService) {}
 
-  async analyze(messages: Message[], state: InternalState): Promise<void> {
+  async analyze(messages: Message[], state: InternalState, subtask?: string): Promise<void> {
     this.logger.log('🟣 Running Ethics Agent - checking value alignment');
+    if (subtask) {
+      this.logger.log(`   Specific subtask: ${subtask.substring(0, 80)}...`);
+    }
 
     const conversationHistory = messages.map(m => ({
       role: m.role as 'user' | 'assistant' | 'system',
       content: m.content,
     }));
 
-    const systemPrompt = `You are the Ethics Agent in the VCTT-AGI Coherence Kernel (Phase 3).
+    const subtaskInstruction = subtask 
+      ? `\n\n🎯 SPECIFIC TASK FOR THIS ANALYSIS:\n${subtask}\n\nFocus your analysis on this specific aspect while still providing the required JSON structure.`
+      : '';
+
+    const systemPrompt = `You are the Ethics Agent in the VCTT-AGI Coherence Kernel (Phase 3).${subtaskInstruction}
 
 **Your Role:** Monitor value alignment, detect potential harms, and ensure ethical coherence in AI responses.
 
