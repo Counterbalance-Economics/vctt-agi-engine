@@ -5,7 +5,7 @@ import { InternalState } from '../entities/internal-state.entity';
 import { LLMService } from '../services/llm.service';
 
 /**
- * VERIFIER AGENT (Grok-3)
+ * VERIFIER AGENT (Grok-4.1)
  * 
  * Role: Truth anchor drummer — fact-checks outputs, verifies real-time data,
  * spots logical inconsistencies, and has veto power for major discrepancies.
@@ -51,7 +51,7 @@ export class VerifierAgent {
       // Build verification prompt
       const verificationPrompt = this.buildVerificationPrompt(query, agentOutputs, subtask);
 
-      // Call Grok-3 with real-time web search
+      // Call Grok-4.1 with real-time web search
       const verification = await this.llmService.verifyWithGrok(
         verificationPrompt,
         {
@@ -74,7 +74,7 @@ export class VerifierAgent {
           corrections: parsed.corrections || [],
           latency: Date.now() - startTime,
           cost: verification.cost,
-          model: 'grok-3',
+          model: 'grok-4.1',
         };
 
         this.logger.log(`✅ Verifier JSON parsed successfully`);
@@ -91,7 +91,7 @@ export class VerifierAgent {
           corrections: [],
           latency: Date.now() - startTime,
           cost: verification.cost,
-          model: 'grok-3',
+          model: 'grok-4.1',
         };
       }
 
@@ -123,7 +123,7 @@ export class VerifierAgent {
   private buildVerificationPrompt(query: string, agentOutputs: any, subtask?: string): string {
     const focusArea = subtask || 'Verify all factual claims and check for logical consistency';
 
-    let prompt = `You are Grok-3, the truth anchor verifier with real-time web search. Your job is to fact-check and verify outputs from other AI agents.
+    let prompt = `You are Grok-4.1, the truth anchor verifier with real-time web search. Your job is to fact-check and verify outputs from other AI agents.
 
 **Original Query:** ${query}
 
@@ -179,7 +179,7 @@ export class VerifierAgent {
     try {
       this.logger.log('🔍 Post-synthesis verification starting...');
 
-      const prompt = `You are Grok-3, performing a final fact-check on this AI-generated response:
+      const prompt = `You are Grok-4.1, performing a final fact-check on this AI-generated response:
 
 **Response to Verify:**
 ${finalResponse}
@@ -210,7 +210,7 @@ ${finalResponse}
           ...parsed,
           latency: Date.now() - startTime,
           cost: verification.cost,
-          model: 'grok-3',
+          model: 'grok-4.1',
         };
       } catch (parseError) {
         verifiedData = {
@@ -220,7 +220,7 @@ ${finalResponse}
           sources: ['Grok post-synthesis check'],
           latency: Date.now() - startTime,
           cost: verification.cost,
-          model: 'grok-3',
+          model: 'grok-4.1',
         };
       }
 

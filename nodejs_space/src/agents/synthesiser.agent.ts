@@ -33,7 +33,7 @@ export class SynthesiserAgent {
         return null;
       }
       
-      const verificationQuery = `You are Grok-3 with real-time web search. Verify this query against CURRENT facts (November 2025):
+      const verificationQuery = `You are Grok-4.1 with real-time web search. Verify this query against CURRENT facts (November 2025):
 
 Query: ${query}
 
@@ -141,7 +141,7 @@ Respond with verified facts only.`;
       return {
         content: directResponse,
         metadata: {
-          model: 'grok-3-direct',
+          model: 'grok-4.1-direct',
           tokens_input: 0,
           tokens_output: Math.round(directResponse.length / 4), // Rough estimate (integer)
           tokens_total: Math.round(directResponse.length / 4), // Rough estimate (integer)
@@ -176,7 +176,7 @@ You are synthesizing the output from ALL 4 agents working in parallel. Each agen
    Task: ${tasks[2].subtask}
    ${bandJamResults.results.ethics ? '✅ Completed' : '❌ Failed'}
 
-4. **Verification** (Grok-3, ${(bandJamResults.weights.verification*100).toFixed(0)}% weight):
+4. **Verification** (Grok-4.1, ${(bandJamResults.weights.verification*100).toFixed(0)}% weight):
    Task: ${tasks[3].subtask}
    ${bandJamResults.results.verification ? '✅ Completed' : '❌ Failed'}
 

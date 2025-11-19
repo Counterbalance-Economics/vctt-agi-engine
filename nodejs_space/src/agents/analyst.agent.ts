@@ -69,7 +69,7 @@ Start with { and end with }. If you write anything other than JSON, the system w
         conversationHistory,
         systemPrompt,
         0.3, // Low temperature for analytical consistency
-        'analyst', // Use cascading: RouteLLM Claude → Direct Claude → Grok-3 → GPT-5 → GPT-4o
+        'analyst', // Use cascading: RouteLLM Claude → Direct Claude → Grok-4.1 → GPT-5 → GPT-4o
         true, // Enable MCP tools (DB queries, calculations)
       );
 

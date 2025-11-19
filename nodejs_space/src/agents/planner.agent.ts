@@ -48,7 +48,7 @@ Your job: Break down user queries into parallel subtasks for 4 specialized agent
 1. **Analyst** (Claude 3.5): Data analysis, logic, patterns, narratives, factual breakdowns
 2. **Relational** (GPT-5): Emotional intelligence, empathy, social dynamics, tone
 3. **Ethics** (GPT-5): Moral reasoning, values, fairness, philosophical depth
-4. **Verification** (Grok-3): Real-time fact-checking, web search, current events
+4. **Verification** (Grok-4.1): Real-time fact-checking, web search, current events
 
 CRITICAL RULES:
 - ALL 4 agents MUST participate (weights must sum to 1.0)
