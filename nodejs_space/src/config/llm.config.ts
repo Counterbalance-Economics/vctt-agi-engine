@@ -29,7 +29,7 @@ export const LLMConfig = {
     // Legacy/fallback models
     primary: 'gpt-4o',                          // Default for non-agent use
     fallback: 'gpt-4o-mini',                    // Fallback to GPT-4o-mini (faster/cheaper)
-    verification: 'grok-4.1',                   // Grok 4.1 (Nov 18, 2025) - truth anchor with 65% less hallucinations
+    verification: 'grok-4-fast-reasoning',      // Grok 4 Fast Reasoning - truth anchor with real-time verification
   },
   
   // MCP Tool Configuration (ENABLED - schemas fixed per Claude requirements)
@@ -94,9 +94,9 @@ export const LLMConfig = {
       inputPer1k: 0.005,         // $5.00 per 1M input tokens (legacy, deprecated)
       outputPer1k: 0.015,        // $15.00 per 1M output tokens
     },
-    'grok-4.1': {
-      inputPer1k: 0.002,         // $2.00 per 1M input tokens (Nov 2025 pricing - 60% cheaper!)
-      outputPer1k: 0.010,        // $10.00 per 1M output tokens (33% cheaper!)
+    'grok-4-fast-reasoning': {
+      inputPer1k: 0.002,         // $2.00 per 1M input tokens
+      outputPer1k: 0.010,        // $10.00 per 1M output tokens
     },
     // Default for auto-routed models (RouteLLM will pick optimal Claude)
     '': {

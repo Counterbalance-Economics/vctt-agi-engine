@@ -13,7 +13,7 @@ export interface VerifiedFact {
   fact: string;
   confidence: number; // 0-1
   sources: string[];
-  verifiedBy: string; // "grok-4.1"
+  verifiedBy: string; // "grok-4-fast-reasoning"
   timestamp: Date;
   topic?: string;
   sessionId?: string;
