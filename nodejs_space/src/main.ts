@@ -20,7 +20,7 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: false, // Allow unknown params (e.g., cache-busting _cb) - just strip them
+      forbidNonWhitelisted: true, // Strip unknown params like _cb (cache-busting)
       transform: true,
       transformOptions: {
         enableImplicitConversion: true, // Auto-convert string "50" → number 50
