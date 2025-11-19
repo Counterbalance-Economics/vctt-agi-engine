@@ -12,6 +12,7 @@ import { AnalystAgent } from '../agents/analyst.agent';
 import { RelationalAgent } from '../agents/relational.agent';
 import { EthicsAgent } from '../agents/ethics.agent';
 import { SynthesiserAgent } from '../agents/synthesiser.agent';
+import { PlannerAgent } from '../agents/planner.agent';
 import { SIMModule } from '../modules/sim.module';
 import { CAMModule } from '../modules/cam.module';
 import { SREModule } from '../modules/sre.module';
@@ -37,6 +38,7 @@ export class VCTTEngineService {
     @Optional() @InjectRepository(InternalState) private stateRepo: Repository<InternalState> | null,
     @Optional() private committeeService: LLMCommitteeService | null,
     private llmCascade: LLMCascadeService,
+    private plannerAgent: PlannerAgent,
     private analystAgent: AnalystAgent,
     private relationalAgent: RelationalAgent,
     private ethicsAgent: EthicsAgent,
