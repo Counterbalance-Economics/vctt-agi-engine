@@ -35,7 +35,7 @@ export class LLMContribution {
   message: Message;
 
   @Column({ type: 'varchar', length: 50 })
-  model_name: string; // 'grok-4.1', 'claude-3.5', 'gpt-5', etc.
+  model_name: string; // 'grok-4-0709', 'claude-3.5', 'gpt-5', etc.
 
   @Column({ type: 'varchar', length: 50 })
   agent_name: string; // 'analyst', 'relational', 'ethics', 'synthesiser', 'verification'
