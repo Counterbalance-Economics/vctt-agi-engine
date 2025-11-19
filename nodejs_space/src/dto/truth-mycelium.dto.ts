@@ -11,7 +11,7 @@ export class VerifiedFactDto {
   @ApiProperty({ description: 'Sources that verified this fact', type: [String] })
   sources: string[];
 
-  @ApiProperty({ description: 'Which agent verified this', example: 'grok-4.1' })
+  @ApiProperty({ description: 'Which agent verified this', example: 'grok-4-0709' })
   verifiedBy: string;
 
   @ApiProperty({ description: 'When this fact was verified' })

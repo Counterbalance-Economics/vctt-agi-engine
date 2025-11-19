@@ -111,7 +111,7 @@ export class VerifierAgent {
           fact,
           confidence: verifiedData.confidence,
           sources: verifiedData.sources,
-          verifiedBy: 'grok-4.1',
+          verifiedBy: 'grok-4-0709',
           timestamp: new Date(),
         }));
 
@@ -258,7 +258,7 @@ ${finalResponse}
           fact,
           confidence: verifiedData.confidence,
           sources: verifiedData.sources,
-          verifiedBy: 'grok-4.1',
+          verifiedBy: 'grok-4-0709',
           timestamp: new Date(),
         }));
 
@@ -334,7 +334,7 @@ Only include facts you can verify with high confidence (>0.7).`;
           fact: v.fact,
           confidence: v.confidence || 0.8,
           sources: v.sources || ['Grok pre-jam sweep'],
-          verifiedBy: 'grok-4.1',
+          verifiedBy: 'grok-4-0709',
           timestamp: new Date(),
         }));
       } catch (parseError) {

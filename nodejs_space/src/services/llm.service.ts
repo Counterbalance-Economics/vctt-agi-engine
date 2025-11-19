@@ -268,9 +268,22 @@ Start your response with { and end with }. NO OTHER TEXT.`;
         throw new Error('Invalid Grok response: missing content');
       }
       
-      const inputTokens = data.usage?.prompt_tokens ?? 0;
-      const outputTokens = data.usage?.completion_tokens ?? 0;
-      const totalTokens = data.usage?.total_tokens ?? inputTokens + outputTokens;
+      // Token counting with fallback estimation (XAI API sometimes doesn't return usage)
+      let inputTokens = data.usage?.prompt_tokens ?? 0;
+      let outputTokens = data.usage?.completion_tokens ?? 0;
+      let totalTokens = data.usage?.total_tokens ?? 0;
+      
+      // FIX #3: Fallback estimation if tokens are undefined
+      if (totalTokens === 0 && content) {
+        // Estimate: avg 4 chars per token for input, actual length for output
+        const promptLength = prompt.length;
+        inputTokens = Math.ceil(promptLength / 4);
+        outputTokens = Math.ceil(content.length / 4);
+        totalTokens = inputTokens + outputTokens;
+        this.logger.warn(
+          `Grok didn't return tokens - using estimation: ${totalTokens} tokens`
+        );
+      }
       
       // Calculate cost (using grok-4-0709 pricing)
       const modelCosts = LLMConfig.costs['grok-4-0709'];
@@ -339,9 +352,20 @@ Start your response with { and end with }. NO OTHER TEXT.`;
         };
         
         // Add tools if provided (for Claude MCP)
+        // FIX #2: Validate tools are proper objects, not strings
         if (tools && tools.length > 0) {
-          requestBody.tools = tools;
-          requestBody.tool_choice = 'auto'; // Let model decide when to use tools
+          // Ensure tools are objects with type: 'function'
+          const validatedTools = tools.filter(tool => 
+            typeof tool === 'object' && tool.type === 'function' && tool.function
+          );
+          
+          if (validatedTools.length > 0) {
+            requestBody.tools = validatedTools;
+            requestBody.tool_choice = 'auto'; // Let model decide when to use tools
+            this.logger.log(`Adding ${validatedTools.length} MCP tools to request`);
+          } else {
+            this.logger.warn('Tools provided but none are valid - skipping tools');
+          }
         }
         
         const response = await fetch(LLMConfig.baseUrl, {
@@ -366,9 +390,22 @@ Start your response with { and end with }. NO OTHER TEXT.`;
           throw new Error('Invalid LLM response: missing content');
         }
         
-        const inputTokens = data.usage?.prompt_tokens ?? 0;
-        const outputTokens = data.usage?.completion_tokens ?? 0;
-        const totalTokens = data.usage?.total_tokens ?? inputTokens + outputTokens;
+        // Token counting with fallback estimation (RouteLLM sometimes doesn't return usage)
+        let inputTokens = data.usage?.prompt_tokens ?? 0;
+        let outputTokens = data.usage?.completion_tokens ?? 0;
+        let totalTokens = data.usage?.total_tokens ?? 0;
+        
+        // FIX #3: Fallback estimation if tokens are undefined (RouteLLM quirk)
+        if (totalTokens === 0 && content) {
+          // Estimate: avg 4 chars per token for input, actual length for output
+          const promptLength = messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0);
+          inputTokens = Math.ceil(promptLength / 4);
+          outputTokens = Math.ceil(content.length / 4);
+          totalTokens = inputTokens + outputTokens;
+          this.logger.warn(
+            `RouteLLM didn't return tokens - using estimation: ${totalTokens} tokens`
+          );
+        }
         
         // Calculate cost
         const modelCosts = (LLMConfig.costs as any)[model] || LLMConfig.costs['gpt-4o'];

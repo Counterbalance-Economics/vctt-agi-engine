@@ -6,7 +6,7 @@ import { LLMService } from '../services/llm.service';
 import { TruthMyceliumService, VerifiedFact } from '../services/truth-mycelium.service';
 
 /**
- * 🥁🍄 VERIFIER AGENT (Grok-4.1) - The Drummer & Living Root System
+ * 🥁🍄 VERIFIER AGENT (Grok-4-Fast-Reasoning) - The Drummer & Living Root System
  * 
  * DUAL ROLE:
  * 1. Drummer: Real-time fact-checking during Band Jam Mode
@@ -60,7 +60,7 @@ export class VerifierAgent {
       // Build verification prompt
       const verificationPrompt = this.buildVerificationPrompt(query, agentOutputs, subtask);
 
-      // Call Grok-4.1 with real-time web search
+      // Call Grok-4-Fast-Reasoning with real-time web search
       const verification = await this.llmService.verifyWithGrok(
         verificationPrompt,
         {
@@ -83,7 +83,7 @@ export class VerifierAgent {
           corrections: parsed.corrections || [],
           latency: Date.now() - startTime,
           cost: verification.cost,
-          model: 'grok-4.1',
+          model: 'grok-4-0709',
         };
 
         this.logger.log(`✅ Verifier JSON parsed successfully`);
@@ -100,7 +100,7 @@ export class VerifierAgent {
           corrections: [],
           latency: Date.now() - startTime,
           cost: verification.cost,
-          model: 'grok-4.1',
+          model: 'grok-4-0709',
         };
       }
 
@@ -111,7 +111,7 @@ export class VerifierAgent {
           fact,
           confidence: verifiedData.confidence,
           sources: verifiedData.sources,
-          verifiedBy: 'grok-4.1',
+          verifiedBy: 'grok-4-0709',
           timestamp: new Date(),
         }));
 
@@ -237,7 +237,7 @@ ${finalResponse}
           ...parsed,
           latency: Date.now() - startTime,
           cost: verification.cost,
-          model: 'grok-4.1',
+          model: 'grok-4-0709',
         };
       } catch (parseError) {
         verifiedData = {
@@ -247,7 +247,7 @@ ${finalResponse}
           sources: ['Grok post-synthesis check'],
           latency: Date.now() - startTime,
           cost: verification.cost,
-          model: 'grok-4.1',
+          model: 'grok-4-0709',
         };
       }
 
@@ -258,7 +258,7 @@ ${finalResponse}
           fact,
           confidence: verifiedData.confidence,
           sources: verifiedData.sources,
-          verifiedBy: 'grok-4.1',
+          verifiedBy: 'grok-4-0709',
           timestamp: new Date(),
         }));
 
@@ -334,7 +334,7 @@ Only include facts you can verify with high confidence (>0.7).`;
           fact: v.fact,
           confidence: v.confidence || 0.8,
           sources: v.sources || ['Grok pre-jam sweep'],
-          verifiedBy: 'grok-4.1',
+          verifiedBy: 'grok-4-0709',
           timestamp: new Date(),
         }));
       } catch (parseError) {
