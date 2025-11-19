@@ -1,4 +1,5 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { LLMConfig } from '../config/llm.config';
 import { LLMCommitteeService } from './llm-committee.service';
 
@@ -39,15 +40,33 @@ export class LLMCascadeService {
   // Track current session for contribution recording
   private currentSessionId: string | null = null;
 
+  // Lazy-loaded committee service (to avoid circular dependency)
+  private committeeService: LLMCommitteeService | null = null;
+  private committeeServiceLoaded = false;
+
   // Track provider health for smart routing
   private providerHealth: Map<string, { failures: number; lastFailure: number }> = new Map();
 
-  constructor(
-    @Optional() private readonly committeeService: LLMCommitteeService | null,
-  ) {
-    if (!committeeService) {
-      this.logger.warn('⚠️  LLMCommitteeService not available - contribution tracking disabled');
+  constructor(private readonly moduleRef: ModuleRef) {}
+
+  /**
+   * Lazy-load the committee service to avoid circular dependencies
+   */
+  private getCommitteeService(): LLMCommitteeService | null {
+    if (!this.committeeServiceLoaded) {
+      try {
+        const service = this.moduleRef.get(LLMCommitteeService, { strict: false });
+        if (service) {
+          this.committeeService = service;
+          this.committeeServiceLoaded = true;
+          this.logger.log('✅ LLMCommitteeService loaded - contribution tracking ENABLED');
+        }
+      } catch (error) {
+        this.logger.warn('⚠️  LLMCommitteeService not available - contribution tracking disabled');
+        this.committeeServiceLoaded = true; // Don't try again
+      }
     }
+    return this.committeeService;
   }
 
   /**
@@ -164,8 +183,9 @@ export class LLMCascadeService {
         this.recordSuccess(provider.name);
 
         // Track contribution to LLM Committee (if available)
-        if (this.committeeService && this.currentSessionId) {
-          await this.committeeService.recordContribution({
+        const committeeService = this.getCommitteeService();
+        if (committeeService && this.currentSessionId) {
+          await committeeService.recordContribution({
             session_id: this.currentSessionId,
             model_name: result.model,
             agent_name: agentRole,
@@ -191,12 +211,13 @@ export class LLMCascadeService {
         this.recordFailure(provider.name);
         
         // Track offline contribution (if available)
-        if (this.committeeService && this.currentSessionId) {
+        const committeeService = this.getCommitteeService();
+        if (committeeService && this.currentSessionId) {
           const errorType = error.response?.status 
             ? `${error.response.status}xx` 
             : (error.message.includes('timeout') ? 'timeout' : 'error');
           
-          await this.committeeService.recordContribution({
+          await committeeService.recordContribution({
             session_id: this.currentSessionId,
             model_name: provider.name,
             agent_name: agentRole,
