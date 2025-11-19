@@ -16,11 +16,11 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Global validation pipe - CRITICAL: forbidNonWhitelisted MUST be true to strip unknown query params
+  // Global validation pipe - whitelist strips unknown props, forbidNonWhitelisted=false allows them silently
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: true, // Strip unknown params like _cb (cache-busting) - DO NOT CHANGE TO FALSE
+      forbidNonWhitelisted: false, // Allow unknown params like _cb (cache-busting) to be stripped silently
       transform: true,
       transformOptions: {
         enableImplicitConversion: true, // Auto-convert string "50" → number 50
