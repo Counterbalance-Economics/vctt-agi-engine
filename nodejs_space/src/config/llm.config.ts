@@ -85,6 +85,10 @@ export const LLMConfig = {
       inputPer1k: 0.003,         // $3.00 per 1M input tokens (legacy)
       outputPer1k: 0.015,        // $15.00 per 1M output tokens
     },
+    'claude-haiku-4-5': {
+      inputPer1k: 0.001,         // $1.00 per 1M input tokens (Haiku 4.5)
+      outputPer1k: 0.005,        // $5.00 per 1M output tokens (estimated)
+    },
     'grok-3': {
       inputPer1k: 0.005,         // $5.00 per 1M input tokens (xAI pricing)
       outputPer1k: 0.015,        // $15.00 per 1M output tokens
