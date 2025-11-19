@@ -52,12 +52,13 @@ Your job: Break down user queries into parallel subtasks for 4 specialized agent
 
 CRITICAL RULES:
 - ALL 4 agents MUST participate (weights must sum to 1.0)
-- Default balanced weights: [0.25, 0.25, 0.25, 0.25]
+- Default balanced weights: [0.30, 0.25, 0.25, 0.20]
 - Adjust weights based on query type:
-  - Factual/current events: Boost Verification (0.35) + Analyst (0.35)
-  - Emotional/personal: Boost Relational (0.40) + Ethics (0.30)
-  - Philosophical: Boost Ethics (0.40) + Analyst (0.30)
+  - Factual/current events: Boost Verification to 0.30 (truth anchor) + Analyst (0.35)
+  - Emotional/personal: Boost Relational (0.40) + Ethics (0.25), Verification (0.15)
+  - Philosophical: Boost Ethics (0.40) + Analyst (0.30), Verification (0.15)
   - Complex analysis: Balance all equally (0.25 each)
+- **VERIFICATION PRIORITY**: Grok has veto power — if confidence < 0.8, re-jam may be triggered
 - Be specific with subtasks - each agent needs clear instructions
 - Use "parallel" strategy unless query requires sequential reasoning
 
@@ -128,38 +129,60 @@ Remember: All 4 agents must contribute. Output JSON only.`;
    * Create a balanced fallback plan when planner fails
    */
   private createBalancedFallback(query: string): TaskPlan {
-    this.logger.log('🛡️  Using balanced fallback task plan (25% each)');
+    // Check if query is factual (boosts Verification to 30%)
+    const isFactual = this.isFactualQuery(query);
+    
+    const weights = isFactual 
+      ? { analyst: 0.35, relational: 0.20, ethics: 0.15, verification: 0.30 }
+      : { analyst: 0.30, relational: 0.25, ethics: 0.25, verification: 0.20 };
+    
+    this.logger.log(`🛡️  Using fallback task plan (Analyst=${(weights.analyst*100).toFixed(0)}%, Verifier=${(weights.verification*100).toFixed(0)}%)`);
     
     return {
       tasks: [
         {
           agent: 'analyst',
           subtask: `Analyze the factual content and logical structure of: "${query}"`,
-          weight: 0.25,
+          weight: weights.analyst,
           priority: 1,
         },
         {
           agent: 'relational',
           subtask: `Identify emotional context and empathetic considerations for: "${query}"`,
-          weight: 0.25,
+          weight: weights.relational,
           priority: 1,
         },
         {
           agent: 'ethics',
           subtask: `Evaluate ethical dimensions and value implications of: "${query}"`,
-          weight: 0.25,
+          weight: weights.ethics,
           priority: 1,
         },
         {
           agent: 'verification',
-          subtask: `Verify factual accuracy and provide current information about: "${query}"`,
-          weight: 0.25,
+          subtask: `Verify factual accuracy and provide real-time current information about: "${query}"`,
+          weight: weights.verification,
           priority: 1,
         },
       ],
       strategy: 'parallel',
-      reasoning: 'Balanced fallback - all agents contribute equally',
+      reasoning: isFactual ? 'Factual query - boosting Verification + Analyst' : 'Balanced fallback',
     };
+  }
+
+  /**
+   * Detect if query requires factual verification (boosts Verification weight to 30%)
+   */
+  private isFactualQuery(query: string): boolean {
+    const factualKeywords = [
+      'who', 'what', 'when', 'where', 'current', 'latest', 'today', 'now',
+      'president', 'election', 'news', 'verify', 'fact', 'true', 'false',
+      'stock', 'price', 'weather', 'score', '2024', '2025', 'won', 'winner',
+      'happened', 'breaking', 'recent'
+    ];
+    
+    const lowerInput = query.toLowerCase();
+    return factualKeywords.some(keyword => lowerInput.includes(keyword));
   }
 
   /**

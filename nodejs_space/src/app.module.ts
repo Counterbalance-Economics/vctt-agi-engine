@@ -16,6 +16,7 @@ import { AnalystAgent } from './agents/analyst.agent';
 import { RelationalAgent } from './agents/relational.agent';
 import { EthicsAgent } from './agents/ethics.agent';
 import { SynthesiserAgent } from './agents/synthesiser.agent';
+import { VerifierAgent } from './agents/verifier.agent';
 import { SIMModule } from './modules/sim.module';
 import { CAMModule } from './modules/cam.module';
 import { SREModule } from './modules/sre.module';
@@ -66,6 +67,7 @@ import { LLMContribution } from './entities/llm-contribution.entity';
     RelationalAgent,
     EthicsAgent,
     SynthesiserAgent,
+    VerifierAgent,
     
     // Modules
     SIMModule,

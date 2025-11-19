@@ -13,6 +13,7 @@ import { RelationalAgent } from '../agents/relational.agent';
 import { EthicsAgent } from '../agents/ethics.agent';
 import { SynthesiserAgent } from '../agents/synthesiser.agent';
 import { PlannerAgent } from '../agents/planner.agent';
+import { VerifierAgent } from '../agents/verifier.agent';
 import { SIMModule } from '../modules/sim.module';
 import { CAMModule } from '../modules/cam.module';
 import { SREModule } from '../modules/sre.module';
@@ -42,6 +43,7 @@ export class VCTTEngineService {
     private analystAgent: AnalystAgent,
     private relationalAgent: RelationalAgent,
     private ethicsAgent: EthicsAgent,
+    private verifierAgent: VerifierAgent,
     private synthesiserAgent: SynthesiserAgent,
     private simModule: SIMModule,
     private camModule: CAMModule,
@@ -289,11 +291,39 @@ export class VCTTEngineService {
     // === SYNTHESISER (Final Response Generation with Weighted Aggregation) ===
     this.logger.log('=== GENERATING FINAL RESPONSE (Weighted Band Synthesis) ===');
     const responseObj = await this.synthesiserAgent.synthesize(messages, state, grokVerificationData, bandJamResults);
-    const response = responseObj.content;
+    let response = responseObj.content;
+
+    // === POST-SYNTHESIS VERIFICATION: Grok double-checks the final output ===
+    this.logger.log('🔍 POST-SYNTHESIS: Grok performing final fact-check...');
+    const postVerification = await this.verifierAgent.postSynthesisCheck(response, messages);
+    
+    // VETO LOGIC: If Grok confidence < 0.8, flag for re-jam
+    if (postVerification && postVerification.confidence < 0.8 && state.state.repair_count < this.max_repairs) {
+      this.logger.warn(`⚠️  VETO: Grok confidence ${postVerification.confidence.toFixed(2)} < 0.8 — triggering re-jam`);
+      state.state.trust_tau = Math.max(state.state.trust_tau - 0.15, 0.3); // Reduce trust
+      state.state.repair_count += 1;
+      state.state.regulation = 'heightened';
+      
+      // Append Grok's corrections to context for re-jam
+      if (postVerification.corrections && postVerification.corrections.length > 0) {
+        this.logger.log(`   Corrections: ${postVerification.corrections.join(', ')}`);
+      }
+      
+      // Re-jam not implemented yet - log warning
+      this.logger.warn('   Re-jam mechanism not yet implemented - proceeding with current response');
+    } else if (postVerification && postVerification.confidence >= 0.8) {
+      this.logger.log(`✅ POST-SYNTHESIS: Grok confirmed accuracy (confidence: ${postVerification.confidence.toFixed(2)})`);
+      
+      // Boost trust if Grok is confident
+      if (postVerification.confidence >= 0.9) {
+        state.state.trust_tau = Math.min(state.state.trust_tau + 0.05, 1.0);
+      }
+    }
 
     // 🚨 GROK TRUTH OVERRIDE: If we hit max repairs with low trust, but Grok was used, trust it!
     const grokWasUsed = responseObj.metadata?.model?.toLowerCase().includes('grok') || 
-                        (grokVerificationData && grokVerificationData.hasDiscrepancy);
+                        (grokVerificationData && grokVerificationData.hasDiscrepancy) ||
+                        (postVerification && postVerification.confidence >= 0.8);
     
     if (state.state.repair_count >= this.max_repairs && state.state.trust_tau < 0.7) {
       if (grokWasUsed) {
@@ -475,9 +505,14 @@ export class VCTTEngineService {
         return null;
       }),
       
-      // Verification (Grok) - enriched with subtask
-      this.synthesiserAgent.performEarlyVerification(taskPlan.tasks[3].subtask, messages).catch(err => {
-        this.logger.error(`❌ Verification failed: ${err.message}`);
+      // Verifier (Grok) - truth anchor drummer with veto power
+      this.verifierAgent.verify(
+        query,
+        {}, // Empty initially - will cross-check after synthesis
+        messages,
+        taskPlan.tasks[3].subtask
+      ).catch(err => {
+        this.logger.error(`❌ Verifier failed: ${err.message}`);
         return null;
       }),
     ]);
