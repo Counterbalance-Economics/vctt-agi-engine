@@ -385,17 +385,25 @@ export class LLMCascadeService {
       throw new Error('OpenAI API key not configured');
     }
 
+    // Build payload - GPT-5.1 requires omitting temperature (uses adaptive default)
+    const payload: any = {
+      model,
+      messages: [{ role: 'system', content: systemPrompt }, ...messages],
+    };
+
+    // Only include temperature for non-GPT-5 models
+    // GPT-5.1 uses dynamic temperature adaptation and rejects custom values
+    if (!model.startsWith('gpt-5')) {
+      payload.temperature = temperature;
+    }
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'system', content: systemPrompt }, ...messages],
-        temperature,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
