@@ -19,6 +19,41 @@ export class SynthesiserAgent {
   constructor(private llmService: LLMService, private llmCascade: LLMCascadeService) {}
 
   /**
+   * Generate user-friendly Markdown from Band Jam results
+   * Converts internal JSON structure to beautiful, readable prose
+   */
+  private generateUserMarkdown(
+    content: string,
+    bandJamResults: any = null,
+    grokVerification: any = null,
+    state: InternalState
+  ): string {
+    // Start with main content
+    let markdown = content;
+
+    // Add verification badge if Grok verified
+    if (grokVerification && grokVerification.confidence >= 0.90) {
+      markdown = `✅ **Verified by Grok** (${(grokVerification.confidence * 100).toFixed(0)}% confidence)\n\n${markdown}`;
+    }
+
+    // Add sources if available
+    if (grokVerification?.sources?.length > 0) {
+      markdown += `\n\n---\n\n### 📚 Sources\n\n`;
+      grokVerification.sources.forEach((source: string) => {
+        markdown += `- ${source}\n`;
+      });
+    }
+
+    // Add system insights footer (optional, can be toggled)
+    if (state.state.trust_tau < 0.80) {
+      markdown += `\n\n---\n\n*System Note: This response was generated with a trust level of τ=${state.state.trust_tau.toFixed(2)}. ` +
+                  `Consider verifying critical facts independently.*`;
+    }
+
+    return markdown;
+  }
+
+  /**
    * PHASE 3.5: Perform early verification (runs in parallel with other agents)
    */
   async performEarlyVerification(query: string, messages: Message[]): Promise<any> {
@@ -273,10 +308,15 @@ Generate a coherent, thoughtful, and **COMPREHENSIVE** response that:
 - Don't cut responses short
 - Provide full, developed thoughts
 - Be engaging and thoughtful
+- Use **bold** for emphasis, bullet points for lists, and clear structure
 
-
-CRITICAL: Your response MUST be valid JSON only. No prose, no explanations, no markdown.
-Start with { and end with }. If you write anything other than JSON, the system will fail.
+**OUTPUT FORMAT:**
+Respond in rich Markdown format:
+- Use **bold** for key terms and important points
+- Use bullet points or numbered lists for clarity
+- Use headings (##, ###) to organize complex topics
+- Keep it conversational and engaging
+- NO JSON output - just natural, formatted text
 ${bandJamContext}${verificationContext}`;
 
     try {
@@ -291,6 +331,14 @@ ${bandJamContext}${verificationContext}`;
       const finalResponse = response.content || 
         `I understand your query. (τ=${state.state.trust_tau.toFixed(3)}, repairs=${state.state.repair_count})`;
 
+      // Generate user-friendly Markdown version
+      const userMarkdown = this.generateUserMarkdown(
+        finalResponse,
+        bandJamResults,
+        grokVerification,
+        state
+      );
+
       // Log completion (verification was done earlier in collaborative mode)
       const verificationNote = grokVerification ? ' [+COLLABORATIVE VERIFICATION]' : '';
       this.logger.log(
@@ -302,7 +350,7 @@ ${bandJamContext}${verificationContext}`;
       );
       
       return {
-        content: finalResponse,
+        content: userMarkdown,  // User-facing Markdown
         metadata: {
           model: response.model,
           tokens_input: response.tokensUsed.input,
@@ -310,6 +358,8 @@ ${bandJamContext}${verificationContext}`;
           tokens_total: response.tokensUsed.total,
           cost_usd: response.cost,
           latency_ms: response.latencyMs,
+          rawContent: finalResponse,  // Internal use only
+          formatted: true,  // Flag to indicate Markdown formatting
         },
       };
     } catch (error) {

@@ -136,6 +136,7 @@ export class LLMCascadeService {
     temperature: number,
     agentRole: string,
     enableTools: boolean = false,
+    responseFormat: 'text' | 'json' = 'text',  // NEW: Support markdown/text output
   ): Promise<LLMResponse> {
     let cascade = this.cascades[agentRole] || this.cascades.analyst;
     
