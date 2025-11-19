@@ -7,10 +7,12 @@ import { AnalyticsService } from './services/analytics.service';
 import { LLMService } from './services/llm.service';
 import { LLMCascadeService } from './services/llm-cascade.service';
 import { LLMCommitteeService } from './services/llm-committee.service';
+import { TruthMyceliumService } from './services/truth-mycelium.service';
 import { SessionController } from './controllers/session.controller';
 import { HealthController } from './controllers/health.controller';
 import { AnalyticsController } from './controllers/analytics.controller';
 import { LLMCommitteeController } from './controllers/llm-committee.controller';
+import { TruthMyceliumController } from './controllers/truth-mycelium.controller';
 import { PlannerAgent } from './agents/planner.agent';
 import { AnalystAgent } from './agents/analyst.agent';
 import { RelationalAgent } from './agents/relational.agent';
@@ -60,6 +62,7 @@ import { LLMContribution } from './entities/llm-contribution.entity';
     LLMService,
     LLMCascadeService,
     LLMCommitteeService,
+    TruthMyceliumService,
     
     // Agents
     PlannerAgent,
@@ -86,6 +89,7 @@ import { LLMContribution } from './entities/llm-contribution.entity';
     HealthController,
     AnalyticsController,
     LLMCommitteeController,
+    TruthMyceliumController,
   ],
 })
 export class AppModule {}

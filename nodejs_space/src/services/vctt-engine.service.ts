@@ -19,6 +19,7 @@ import { CAMModule } from '../modules/cam.module';
 import { SREModule } from '../modules/sre.module';
 import { CTMModule } from '../modules/ctm.module';
 import { RILModule } from '../modules/ril.module';
+import { TruthMyceliumService } from './truth-mycelium.service';
 
 @Injectable()
 export class VCTTEngineService {
@@ -50,6 +51,7 @@ export class VCTTEngineService {
     private sreModule: SREModule,
     private ctmModule: CTMModule,
     private rilModule: RILModule,
+    private truthMycelium: TruthMyceliumService,
     private configService: ConfigService,
   ) {
     this.max_repairs = parseInt(this.configService.get<string>('MAX_REPAIR_ITERATIONS', '3'));
@@ -230,6 +232,23 @@ export class VCTTEngineService {
     state.state.regulation = 'normal';
 
     this.logger.log('=== STARTING VCTT PIPELINE ===');
+
+    // 🍄 PRE-JAM TRUTH SWEEP: Seed the mycelium before the band starts playing
+    this.logger.log('🍄 Running pre-jam truth sweep with Grok-4.1...');
+    const sessionHistory = messages
+      .filter(m => m.role !== 'system')
+      .map(m => `${m.role}: ${m.content}`)
+      .join('\n');
+    
+    await this.verifierAgent.preJamTruthSweep(input, sessionHistory);
+    
+    // Get relevant verified facts for this query
+    const relevantFacts = this.truthMycelium.getRelevantFacts(input, 10);
+    if (relevantFacts.length > 0) {
+      this.logger.log(`🍄 Found ${relevantFacts.length} relevant verified facts from mycelium`);
+      // Store in state for agents to access
+      state.myceliumFacts = relevantFacts;
+    }
 
     // 🎼 BAND JAM MODE: Always run all agents in parallel with task decomposition
     this.logger.log('🎵 Starting Band Jam Mode - all agents will collaborate simultaneously');

@@ -3,15 +3,20 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Message } from '../entities/message.entity';
 import { InternalState } from '../entities/internal-state.entity';
 import { LLMService } from '../services/llm.service';
+import { TruthMyceliumService, VerifiedFact } from '../services/truth-mycelium.service';
 
 /**
- * VERIFIER AGENT (Grok-4.1)
+ * 🥁🍄 VERIFIER AGENT (Grok-4.1) - The Drummer & Living Root System
  * 
- * Role: Truth anchor drummer — fact-checks outputs, verifies real-time data,
- * spots logical inconsistencies, and has veto power for major discrepancies.
+ * DUAL ROLE:
+ * 1. Drummer: Real-time fact-checking during Band Jam Mode
+ * 2. Mycelium: Grows persistent truth substrate across all sessions
  * 
  * Weight: 20% base, 30% for factual queries
  * Veto: Triggers re-jam if confidence < 0.8
+ * 
+ * Every verified fact is stored in the mycelium, creating a living, growing
+ * substrate of truth that all future conversations can build upon.
  */
 
 export interface VerifiedOutput {
@@ -23,13 +28,17 @@ export interface VerifiedOutput {
   latency?: number;
   cost?: number;
   model?: string;
+  verifiedFacts?: VerifiedFact[]; // NEW: For mycelium storage
 }
 
 @Injectable()
 export class VerifierAgent {
   private readonly logger = new Logger(VerifierAgent.name);
 
-  constructor(private llmService: LLMService) {}
+  constructor(
+    private llmService: LLMService,
+    private truthMycelium: TruthMyceliumService,
+  ) {}
 
   /**
    * MAIN VERIFICATION METHOD
@@ -94,6 +103,24 @@ export class VerifierAgent {
           model: 'grok-4.1',
         };
       }
+
+      // 🍄 MYCELIAL GROWTH: Store verified facts in the truth substrate
+      const mycelialFacts: VerifiedFact[] = verifiedData.verified_facts
+        .filter(fact => fact && fact.length > 10) // Only substantive facts
+        .map(fact => ({
+          fact,
+          confidence: verifiedData.confidence,
+          sources: verifiedData.sources,
+          verifiedBy: 'grok-4.1',
+          timestamp: new Date(),
+        }));
+
+      if (mycelialFacts.length > 0) {
+        this.truthMycelium.bulkStoreFacts(mycelialFacts);
+        this.logger.log(`🍄 Mycelium grew by ${mycelialFacts.length} verified facts`);
+      }
+
+      verifiedData.verifiedFacts = mycelialFacts;
 
       // Log verification results
       this.logger.log(
@@ -224,12 +251,109 @@ ${finalResponse}
         };
       }
 
+      // 🍄 MYCELIAL GROWTH: Store post-synthesis verified facts
+      const mycelialFacts: VerifiedFact[] = verifiedData.verified_facts
+        .filter(fact => fact && fact.length > 10)
+        .map(fact => ({
+          fact,
+          confidence: verifiedData.confidence,
+          sources: verifiedData.sources,
+          verifiedBy: 'grok-4.1',
+          timestamp: new Date(),
+        }));
+
+      if (mycelialFacts.length > 0) {
+        this.truthMycelium.bulkStoreFacts(mycelialFacts);
+        this.logger.log(`🍄 Post-synthesis mycelium growth: ${mycelialFacts.length} facts`);
+      }
+
+      verifiedData.verifiedFacts = mycelialFacts;
+
       this.logger.log(`✅ Post-synthesis check complete - confidence: ${verifiedData.confidence.toFixed(2)}`);
 
       return verifiedData;
     } catch (error) {
       this.logger.error(`❌ Post-synthesis check failed: ${error.message}`);
       return null;
+    }
+  }
+
+  /**
+   * 🍄 PRE-JAM TRUTH SWEEP
+   * 
+   * Extract potential claims from user query and session history,
+   * verify them with Grok-4.1, and seed the mycelium before the band starts.
+   */
+  async preJamTruthSweep(query: string, sessionHistory: string): Promise<VerifiedFact[]> {
+    const startTime = Date.now();
+
+    try {
+      this.logger.log('🍄 Pre-jam truth sweep starting...');
+
+      // Extract claims from query and history
+      const fullContext = `${query}\n\n${sessionHistory}`;
+      const claims = this.truthMycelium.extractClaims(fullContext);
+
+      if (claims.length === 0) {
+        this.logger.log('No factual claims detected in pre-jam sweep');
+        return [];
+      }
+
+      this.logger.log(`Extracted ${claims.length} potential claims for verification`);
+
+      // Verify claims with Grok-4.1
+      const prompt = `You are Grok-4.1, performing a pre-verification sweep. Verify these factual claims:
+
+${claims.map((claim, i) => `${i + 1}. ${claim}`).join('\n')}
+
+**Task:** Verify each claim against real-time data. Return JSON:
+{
+  "verified": [
+    {
+      "fact": "verified claim text",
+      "confidence": 0.95,
+      "sources": ["source1.com", "source2.com"]
+    }
+  ]
+}
+
+Only include facts you can verify with high confidence (>0.7).`;
+
+      const verification = await this.llmService.verifyWithGrok(prompt, {
+        enableWebSearch: true,
+        enableXSearch: false,
+        context: 'Pre-jam truth sweep',
+      });
+
+      // Parse verified facts
+      let verifiedFacts: VerifiedFact[] = [];
+
+      try {
+        const parsed = JSON.parse(verification.content);
+        verifiedFacts = (parsed.verified || []).map((v: any) => ({
+          fact: v.fact,
+          confidence: v.confidence || 0.8,
+          sources: v.sources || ['Grok pre-jam sweep'],
+          verifiedBy: 'grok-4.1',
+          timestamp: new Date(),
+        }));
+      } catch (parseError) {
+        this.logger.warn(`Pre-jam sweep JSON parse failed, skipping seeding`);
+      }
+
+      // Store in mycelium
+      if (verifiedFacts.length > 0) {
+        this.truthMycelium.bulkStoreFacts(verifiedFacts);
+        this.logger.log(
+          `🍄 Pre-jam mycelium seeded: ${verifiedFacts.length} facts ` +
+          `(${Date.now() - startTime}ms)`,
+        );
+      }
+
+      return verifiedFacts;
+    } catch (error) {
+      this.logger.error(`❌ Pre-jam truth sweep failed: ${error.message}`);
+      return [];
     }
   }
 }
