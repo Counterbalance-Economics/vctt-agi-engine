@@ -434,7 +434,7 @@ export class LLMCascadeService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'grok-4.1',
+        model: 'grok-beta',
         messages: [{ role: 'system', content: systemPrompt }, ...messages],
         temperature,
       }),
@@ -446,7 +446,7 @@ export class LLMCascadeService {
     }
 
     const data = await response.json();
-    return this.parseOpenAIResponse(data, 'grok-4.1');
+    return this.parseOpenAIResponse(data, 'grok-beta');
   }
 
   /**

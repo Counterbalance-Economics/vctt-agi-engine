@@ -141,7 +141,7 @@ export class VerifierAgent {
       if (this.committeeService) {
         await this.committeeService.recordContribution({
           session_id: messages[0]?.conversation_id || 'unknown',
-          model_name: verifiedData.model || 'grok-4',
+          model_name: verifiedData.model || 'grok-beta',
           agent_name: 'verifier',
           contributed: true,
           offline: false,
@@ -166,7 +166,7 @@ export class VerifierAgent {
       if (this.committeeService && messages[0]) {
         await this.committeeService.recordContribution({
           session_id: messages[0].conversation_id || 'unknown',
-          model_name: 'grok-4',
+          model_name: 'grok-beta',
           agent_name: 'verifier',
           contributed: false,
           offline: true,
@@ -309,7 +309,7 @@ ${finalResponse}
       if (this.committeeService && messages[0]) {
         await this.committeeService.recordContribution({
           session_id: messages[0].conversation_id || 'unknown',
-          model_name: verifiedData.model || 'grok-4',
+          model_name: verifiedData.model || 'grok-beta',
           agent_name: 'verifier-post',
           contributed: true,
           offline: false,
@@ -327,7 +327,7 @@ ${finalResponse}
       if (this.committeeService && messages[0]) {
         await this.committeeService.recordContribution({
           session_id: messages[0].conversation_id || 'unknown',
-          model_name: 'grok-4',
+          model_name: 'grok-beta',
           agent_name: 'verifier-post',
           contributed: false,
           offline: true,
