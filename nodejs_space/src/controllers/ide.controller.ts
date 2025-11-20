@@ -88,22 +88,45 @@ export class IdeController {
 
   @Post('code-edit')
   @ApiOperation({
-    summary: 'Apply AI code editing',
-    description: 'Use AI to transform code based on natural language instructions',
+    summary: '🎨 AI Code Editing (Cmd+K killer feature)',
+    description: 'Transform code using AI based on natural language instructions. Powers the inline edit experience. Uses Claude 3.5 Sonnet for best code quality.',
   })
-  @ApiBody({ type: CodeEditDto })
+  @ApiBody({
+    type: CodeEditDto,
+    examples: {
+      'async-conversion': {
+        value: {
+          filePath: 'src/utils.ts',
+          originalCode: 'function fetchData() { return fetch("/api/data"); }',
+          instruction: 'make this async/await and add error handling',
+          language: 'typescript',
+        },
+      },
+      'refactor': {
+        value: {
+          filePath: 'src/component.tsx',
+          originalCode: 'const MyComponent = () => { const [count, setCount] = useState(0); return <div>{count}</div>; }',
+          instruction: 'convert to TypeScript with proper types',
+          language: 'tsx',
+        },
+      },
+    },
+  })
   @ApiResponse({
     status: 200,
-    description: 'Code edit suggestion generated',
+    description: 'Code transformed successfully. Returns original + edited code with diff stats.',
   })
   async applyCodeEdit(@Body() dto: CodeEditDto) {
     try {
+      this.logger.log(`🎨 Code edit request: ${dto.filePath} - "${dto.instruction}"`);
       return await this.ideService.applyCodeEdit(
         dto.filePath,
         dto.instruction,
-        dto.content,
+        dto.originalCode,
+        dto.language,
       );
     } catch (error) {
+      this.logger.error(`❌ Code edit failed: ${error.message}`);
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }

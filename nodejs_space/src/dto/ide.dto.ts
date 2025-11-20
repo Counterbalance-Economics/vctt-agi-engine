@@ -13,9 +13,10 @@ export class FileOperationDto {
 
 export class CodeEditDto {
   filePath: string;
-  content: string;
-  instruction: string;
-  context?: string[];
+  originalCode: string; // The code to edit (previously 'content')
+  instruction: string; // Natural language instruction (e.g., "make this async")
+  language?: string; // Optional: typescript, javascript, python, etc.
+  context?: string[]; // Optional: additional context files
 }
 
 export class TestRunDto {

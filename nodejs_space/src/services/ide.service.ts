@@ -4,12 +4,13 @@
  * Handles file operations, code editing, analysis, and more
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as fsSync from 'fs';
+import { LlmService } from './llm.service';
 
 const execAsync = promisify(exec);
 
@@ -18,6 +19,11 @@ export class IdeService {
   private readonly logger = new Logger(IdeService.name);
   private readonly projectRoot = '/home/ubuntu/vctt_agi_engine';
   private readonly maxFileSize = 10 * 1024 * 1024; // 10MB
+
+  constructor(
+    @Inject(forwardRef(() => LlmService))
+    private readonly llmService: LlmService,
+  ) {}
 
   /**
    * Get file tree structure
@@ -225,28 +231,178 @@ export class IdeService {
   }
 
   /**
-   * AI Code Editing - Apply AI suggestions to code
+   * AI Code Editing - Apply AI suggestions to code (REAL LLM-powered)
+   * This is the KILLER feature for Cmd+K inline editing
    */
   async applyCodeEdit(
     filePath: string,
     instruction: string,
-    content: string,
+    originalCode: string,
+    language?: string,
   ): Promise<any> {
     try {
-      // For now, this is a placeholder that will integrate with LLM
-      // In production, this would call an LLM to transform the code
+      const fileExt = path.extname(filePath).substring(1) || language || 'typescript';
+      
       this.logger.log(
-        `AI code edit requested for ${filePath}: ${instruction}`,
+        `🎨 AI Code Edit: ${filePath} - "${instruction.substring(0, 50)}..."`,
+      );
+
+      // Build context-aware prompt for code transformation
+      const systemPrompt = `You are an expert code editor. Transform the given code according to the user's instruction.
+
+CRITICAL RULES:
+1. Output ONLY the transformed code - no explanations, no markdown, no \`\`\` blocks
+2. Preserve the original code structure and style unless instructed otherwise
+3. Add appropriate comments only if they improve clarity
+4. Ensure the output is syntactically correct ${fileExt} code
+5. If the instruction is unclear, make the best reasonable interpretation
+
+Language: ${fileExt}`;
+
+      const userPrompt = `Original code:
+\`\`\`${fileExt}
+${originalCode}
+\`\`\`
+
+Instruction: ${instruction}
+
+Transform the code above according to the instruction. Output ONLY the transformed code:`;
+
+      // Use Claude (best for code) or GPT-4o as fallback
+      const response = await this.llmService.getCompletion(
+        userPrompt,
+        {
+          systemMessage: systemPrompt,
+          temperature: 0.2, // Low temperature for deterministic code changes
+          maxTokens: 4000,
+        },
+        'claude-3.5-sonnet', // Claude is best for code editing
+      );
+
+      if (!response || !response.content) {
+        throw new Error('LLM returned empty response');
+      }
+
+      // Clean up the response (remove any markdown artifacts)
+      let editedCode = response.content.trim();
+      
+      // Remove markdown code blocks if present
+      editedCode = editedCode.replace(/^```[\w]*\n/gm, '');
+      editedCode = editedCode.replace(/\n```$/gm, '');
+      editedCode = editedCode.trim();
+
+      // Calculate diff statistics
+      const originalLines = originalCode.split('\n').length;
+      const editedLines = editedCode.split('\n').length;
+      const linesChanged = Math.abs(editedLines - originalLines);
+
+      this.logger.log(
+        `✅ Code edit complete: ${originalLines} → ${editedLines} lines (${linesChanged} changed)`,
       );
 
       return {
         success: true,
-        message: 'AI code editing will be implemented with LLM integration',
-        suggestion:
-          'This feature requires LLM API integration for code transformations',
+        originalCode,
+        editedCode,
+        instruction,
+        model: response.model,
+        stats: {
+          originalLines,
+          editedLines,
+          linesChanged,
+          tokensUsed: response.totalTokens || 0,
+          costUSD: response.costUSD || 0,
+        },
+        timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      return { success: false, error: error.message };
+      this.logger.error(`❌ AI Code Edit failed: ${error.message}`);
+      return {
+        success: false,
+        error: error.message,
+        originalCode,
+        instruction,
+      };
+    }
+  }
+
+  /**
+   * AI Code Edit with Streaming (for real-time Cmd+K experience)
+   * Returns an async generator for token-by-token streaming
+   */
+  async *streamCodeEdit(
+    filePath: string,
+    instruction: string,
+    originalCode: string,
+    language?: string,
+  ): AsyncGenerator<any, void, unknown> {
+    try {
+      const fileExt = path.extname(filePath).substring(1) || language || 'typescript';
+      
+      this.logger.log(
+        `🌊 Streaming Code Edit: ${filePath} - "${instruction.substring(0, 50)}..."`,
+      );
+
+      const systemPrompt = `You are an expert code editor. Transform the given code according to the user's instruction.
+
+CRITICAL RULES:
+1. Output ONLY the transformed code - no explanations, no markdown, no \`\`\` blocks
+2. Preserve the original code structure and style unless instructed otherwise
+3. Add appropriate comments only if they improve clarity
+4. Ensure the output is syntactically correct ${fileExt} code
+
+Language: ${fileExt}`;
+
+      const userPrompt = `Original code:
+\`\`\`${fileExt}
+${originalCode}
+\`\`\`
+
+Instruction: ${instruction}
+
+Transform the code above. Output ONLY the code:`;
+
+      // Stream from LLM
+      yield { type: 'start', instruction, originalCode };
+
+      let fullResponse = '';
+      for await (const chunk of this.llmService.streamCompletion(
+        userPrompt,
+        {
+          systemMessage: systemPrompt,
+          temperature: 0.2,
+          maxTokens: 4000,
+        },
+        'claude-3.5-sonnet',
+      )) {
+        if (chunk.type === 'content') {
+          fullResponse += chunk.content;
+          yield {
+            type: 'chunk',
+            content: chunk.content,
+            accumulated: fullResponse,
+          };
+        }
+      }
+
+      // Clean up final response
+      let editedCode = fullResponse.trim();
+      editedCode = editedCode.replace(/^```[\w]*\n/gm, '');
+      editedCode = editedCode.replace(/\n```$/gm, '');
+      editedCode = editedCode.trim();
+
+      yield {
+        type: 'complete',
+        editedCode,
+        originalCode,
+        instruction,
+      };
+    } catch (error) {
+      this.logger.error(`❌ Streaming Code Edit failed: ${error.message}`);
+      yield {
+        type: 'error',
+        error: error.message,
+      };
     }
   }
 
