@@ -1,0 +1,496 @@
+{
+  "results": [
+    {
+      "session": {
+        "id": 1,
+        "scenario": "Add TypeScript types to function",
+        "filePath": "utils/helpers.ts",
+        "instruction": "Add proper TypeScript type annotations",
+        "originalCode": "function calculateTotal(items) {\n  return items.reduce((sum, item) => sum + item.price, 0);\n}",
+        "language": "typescript",
+        "expectedComplexity": "simple"
+      },
+      "response": null,
+      "jazzAnalysis": {
+        "voice": 0,
+        "choice": 0,
+        "transparency": 0,
+        "trust": 0,
+        "suggestions": []
+      },
+      "userWouldAccept": false,
+      "failureMode": "Request failed with status code 502",
+      "processingTime": 106
+    },
+    {
+      "session": {
+        "id": 2,
+        "scenario": "Add error handling to API call",
+        "filePath": "api/users.ts",
+        "instruction": "Add comprehensive error handling",
+        "originalCode": "async function fetchUser(id: string) {\n  const response = await fetch(`/api/users/${id}`);\n  return response.json();\n}",
+        "language": "typescript",
+        "expectedComplexity": "medium"
+      },
+      "response": null,
+      "jazzAnalysis": {
+        "voice": 0,
+        "choice": 0,
+        "transparency": 0,
+        "trust": 0,
+        "suggestions": []
+      },
+      "userWouldAccept": false,
+      "failureMode": "Request failed with status code 502",
+      "processingTime": 24
+    },
+    {
+      "session": {
+        "id": 3,
+        "scenario": "Add Zod validation to endpoint",
+        "filePath": "controllers/auth.ts",
+        "instruction": "Add Zod schema validation for the input",
+        "originalCode": "export async function register(req: Request, res: Response) {\n  const { email, password } = req.body;\n  const user = await createUser(email, password);\n  res.json(user);\n}",
+        "language": "typescript",
+        "expectedComplexity": "medium"
+      },
+      "response": null,
+      "jazzAnalysis": {
+        "voice": 0,
+        "choice": 0,
+        "transparency": 0,
+        "trust": 0,
+        "suggestions": []
+      },
+      "userWouldAccept": false,
+      "failureMode": "Request failed with status code 502",
+      "processingTime": 43
+    },
+    {
+      "session": {
+        "id": 4,
+        "scenario": "Convert Promise chains to async/await",
+        "filePath": "services/payment.ts",
+        "instruction": "Refactor to use async/await instead of .then()",
+        "originalCode": "function processPayment(orderId) {\n  return getOrder(orderId)\n    .then(order => validateOrder(order))\n    .then(validated => chargeCard(validated))\n    .then(result => sendConfirmation(result));\n}",
+        "language": "typescript",
+        "expectedComplexity": "medium"
+      },
+      "response": null,
+      "jazzAnalysis": {
+        "voice": 0,
+        "choice": 0,
+        "transparency": 0,
+        "trust": 0,
+        "suggestions": []
+      },
+      "userWouldAccept": false,
+      "failureMode": "Request failed with status code 502",
+      "processingTime": 23
+    },
+    {
+      "session": {
+        "id": 5,
+        "scenario": "Add structured logging",
+        "filePath": "services/analytics.ts",
+        "instruction": "Add comprehensive logging with context",
+        "originalCode": "async function trackEvent(userId: string, event: string) {\n  await db.events.insert({ userId, event, timestamp: Date.now() });\n}",
+        "language": "typescript",
+        "expectedComplexity": "simple"
+      },
+      "response": null,
+      "jazzAnalysis": {
+        "voice": 0,
+        "choice": 0,
+        "transparency": 0,
+        "trust": 0,
+        "suggestions": []
+      },
+      "userWouldAccept": false,
+      "failureMode": "Request failed with status code 502",
+      "processingTime": 23
+    },
+    {
+      "session": {
+        "id": 6,
+        "scenario": "Add rate limiting to auth endpoint",
+        "filePath": "middleware/auth.ts",
+        "instruction": "Add rate limiting to prevent brute force attacks",
+        "originalCode": "export async function login(req: Request, res: Response) {\n  const { email, password } = req.body;\n  const user = await authenticateUser(email, password);\n  res.json({ token: generateToken(user) });\n}",
+        "language": "typescript",
+        "expectedComplexity": "complex"
+      },
+      "response": null,
+      "jazzAnalysis": {
+        "voice": 0,
+        "choice": 0,
+        "transparency": 0,
+        "trust": 0,
+        "suggestions": []
+      },
+      "userWouldAccept": false,
+      "failureMode": "Request failed with status code 502",
+      "processingTime": 23
+    },
+    {
+      "session": {
+        "id": 7,
+        "scenario": "Add caching to expensive query",
+        "filePath": "queries/dashboard.ts",
+        "instruction": "Add Redis caching to improve performance",
+        "originalCode": "async function getDashboardData(userId: string) {\n  const stats = await db.query('SELECT * FROM user_stats WHERE user_id = ?', [userId]);\n  const recent = await db.query('SELECT * FROM recent_activity WHERE user_id = ? LIMIT 10', [userId]);\n  return { stats, recent };\n}",
+        "language": "typescript",
+        "expectedComplexity": "complex"
+      },
+      "response": null,
+      "jazzAnalysis": {
+        "voice": 0,
+        "choice": 0,
+        "transparency": 0,
+        "trust": 0,
+        "suggestions": []
+      },
+      "userWouldAccept": false,
+      "failureMode": "Request failed with status code 502",
+      "processingTime": 25
+    },
+    {
+      "session": {
+        "id": 8,
+        "scenario": "Optimize React component re-renders",
+        "filePath": "components/UserList.tsx",
+        "instruction": "Optimize to prevent unnecessary re-renders",
+        "originalCode": "function UserList({ users, onSelect }) {\n  return (\n    <div>\n      {users.map(user => (\n        <div onClick={() => onSelect(user)}>\n          {user.name}\n        </div>\n      ))}\n    </div>\n  );\n}",
+        "language": "typescript",
+        "expectedComplexity": "medium"
+      },
+      "response": null,
+      "jazzAnalysis": {
+        "voice": 0,
+        "choice": 0,
+        "transparency": 0,
+        "trust": 0,
+        "suggestions": []
+      },
+      "userWouldAccept": false,
+      "failureMode": "Request failed with status code 502",
+      "processingTime": 39
+    },
+    {
+      "session": {
+        "id": 9,
+        "scenario": "Generate unit tests",
+        "filePath": "utils/validators.ts",
+        "instruction": "Generate comprehensive unit tests",
+        "originalCode": "export function isValidEmail(email: string): boolean {\n  return /^[^s@]+@[^s@]+.[^s@]+$/.test(email);\n}",
+        "language": "typescript",
+        "expectedComplexity": "simple"
+      },
+      "response": null,
+      "jazzAnalysis": {
+        "voice": 0,
+        "choice": 0,
+        "transparency": 0,
+        "trust": 0,
+        "suggestions": []
+      },
+      "userWouldAccept": false,
+      "failureMode": "Request failed with status code 502",
+      "processingTime": 25
+    },
+    {
+      "session": {
+        "id": 10,
+        "scenario": "Wrap operations in transaction",
+        "filePath": "services/order.ts",
+        "instruction": "Wrap these operations in a database transaction",
+        "originalCode": "async function createOrder(userId: string, items: Item[]) {\n  const order = await db.orders.insert({ userId, status: 'pending' });\n  await db.orderItems.insertMany(items.map(item => ({ orderId: order.id, ...item })));\n  await db.inventory.decrementMany(items);\n  return order;\n}",
+        "language": "typescript",
+        "expectedComplexity": "complex"
+      },
+      "response": null,
+      "jazzAnalysis": {
+        "voice": 0,
+        "choice": 0,
+        "transparency": 0,
+        "trust": 0,
+        "suggestions": []
+      },
+      "userWouldAccept": false,
+      "failureMode": "Request failed with status code 502",
+      "processingTime": 30
+    },
+    {
+      "session": {
+        "id": 11,
+        "scenario": "Use environment variables",
+        "filePath": "config/api.ts",
+        "instruction": "Replace hardcoded values with environment variables",
+        "originalCode": "export const config = {\n  apiUrl: 'https://api.example.com',\n  apiKey: 'sk_test_123456',\n  timeout: 5000\n};",
+        "language": "typescript",
+        "expectedComplexity": "simple"
+      },
+      "response": null,
+      "jazzAnalysis": {
+        "voice": 0,
+        "choice": 0,
+        "transparency": 0,
+        "trust": 0,
+        "suggestions": []
+      },
+      "userWouldAccept": false,
+      "failureMode": "Request failed with status code 502",
+      "processingTime": 23
+    },
+    {
+      "session": {
+        "id": 12,
+        "scenario": "Add timeout to async operation",
+        "filePath": "services/external.ts",
+        "instruction": "Add a 10 second timeout to this API call",
+        "originalCode": "async function fetchExternalData(endpoint: string) {\n  const response = await fetch(endpoint);\n  return response.json();\n}",
+        "language": "typescript",
+        "expectedComplexity": "medium"
+      },
+      "response": null,
+      "jazzAnalysis": {
+        "voice": 0,
+        "choice": 0,
+        "transparency": 0,
+        "trust": 0,
+        "suggestions": []
+      },
+      "userWouldAccept": false,
+      "failureMode": "Request failed with status code 502",
+      "processingTime": 24
+    },
+    {
+      "session": {
+        "id": 13,
+        "scenario": "Extract reusable logic",
+        "filePath": "pages/dashboard.tsx",
+        "instruction": "Extract the data fetching logic into a custom hook",
+        "originalCode": "function Dashboard() {\n  const [data, setData] = useState(null);\n  const [loading, setLoading] = useState(true);\n  \n  useEffect(() => {\n    fetch('/api/dashboard')\n      .then(r => r.json())\n      .then(d => { setData(d); setLoading(false); });\n  }, []);\n  \n  return loading ? <Spinner /> : <DashboardView data={data} />;\n}",
+        "language": "typescript",
+        "expectedComplexity": "medium"
+      },
+      "response": null,
+      "jazzAnalysis": {
+        "voice": 0,
+        "choice": 0,
+        "transparency": 0,
+        "trust": 0,
+        "suggestions": []
+      },
+      "userWouldAccept": false,
+      "failureMode": "Request failed with status code 502",
+      "processingTime": 31
+    },
+    {
+      "session": {
+        "id": 14,
+        "scenario": "Add JSDoc comments",
+        "filePath": "lib/encryption.ts",
+        "instruction": "Add comprehensive JSDoc documentation",
+        "originalCode": "export function encrypt(data: string, key: string): string {\n  const cipher = crypto.createCipher('aes-256-cbc', key);\n  return cipher.update(data, 'utf8', 'hex') + cipher.final('hex');\n}",
+        "language": "typescript",
+        "expectedComplexity": "simple"
+      },
+      "response": null,
+      "jazzAnalysis": {
+        "voice": 0,
+        "choice": 0,
+        "transparency": 0,
+        "trust": 0,
+        "suggestions": []
+      },
+      "userWouldAccept": false,
+      "failureMode": "Request failed with status code 502",
+      "processingTime": 23
+    },
+    {
+      "session": {
+        "id": 15,
+        "scenario": "Add null checks",
+        "filePath": "utils/formatters.ts",
+        "instruction": "Add proper null/undefined handling",
+        "originalCode": "function getUserDisplayName(user) {\n  return user.profile.firstName + ' ' + user.profile.lastName;\n}",
+        "language": "typescript",
+        "expectedComplexity": "simple"
+      },
+      "response": null,
+      "jazzAnalysis": {
+        "voice": 0,
+        "choice": 0,
+        "transparency": 0,
+        "trust": 0,
+        "suggestions": []
+      },
+      "userWouldAccept": false,
+      "failureMode": "Request failed with status code 502",
+      "processingTime": 22
+    },
+    {
+      "session": {
+        "id": 16,
+        "scenario": "Improve accessibility",
+        "filePath": "components/Modal.tsx",
+        "instruction": "Add proper ARIA attributes for accessibility",
+        "originalCode": "function Modal({ isOpen, onClose, children }) {\n  if (!isOpen) return null;\n  return (\n    <div className=\"modal-overlay\" onClick={onClose}>\n      <div className=\"modal-content\">\n        {children}\n      </div>\n    </div>\n  );\n}",
+        "language": "typescript",
+        "expectedComplexity": "medium"
+      },
+      "response": null,
+      "jazzAnalysis": {
+        "voice": 0,
+        "choice": 0,
+        "transparency": 0,
+        "trust": 0,
+        "suggestions": []
+      },
+      "userWouldAccept": false,
+      "failureMode": "Request failed with status code 502",
+      "processingTime": 28
+    },
+    {
+      "session": {
+        "id": 17,
+        "scenario": "Fix potential memory leak",
+        "filePath": "hooks/useWebSocket.ts",
+        "instruction": "Fix the memory leak in this WebSocket hook",
+        "originalCode": "function useWebSocket(url: string) {\n  const [messages, setMessages] = useState([]);\n  \n  useEffect(() => {\n    const ws = new WebSocket(url);\n    ws.onmessage = (e) => setMessages(prev => [...prev, e.data]);\n  }, [url]);\n  \n  return messages;\n}",
+        "language": "typescript",
+        "expectedComplexity": "medium"
+      },
+      "response": null,
+      "jazzAnalysis": {
+        "voice": 0,
+        "choice": 0,
+        "transparency": 0,
+        "trust": 0,
+        "suggestions": []
+      },
+      "userWouldAccept": false,
+      "failureMode": "Request failed with status code 502",
+      "processingTime": 23
+    },
+    {
+      "session": {
+        "id": 18,
+        "scenario": "Prevent SQL injection",
+        "filePath": "db/queries.ts",
+        "instruction": "Fix the SQL injection vulnerability",
+        "originalCode": "async function searchUsers(searchTerm: string) {\n  const query = `SELECT * FROM users WHERE name LIKE '%${searchTerm}%'`;\n  return db.query(query);\n}",
+        "language": "typescript",
+        "expectedComplexity": "medium"
+      },
+      "response": null,
+      "jazzAnalysis": {
+        "voice": 0,
+        "choice": 0,
+        "transparency": 0,
+        "trust": 0,
+        "suggestions": []
+      },
+      "userWouldAccept": false,
+      "failureMode": "Request failed with status code 503",
+      "processingTime": 23
+    },
+    {
+      "session": {
+        "id": 19,
+        "scenario": "Standardize API response format",
+        "filePath": "controllers/products.ts",
+        "instruction": "Standardize the response format to match our API conventions",
+        "originalCode": "export async function getProducts(req: Request, res: Response) {\n  const products = await db.products.findAll();\n  res.json(products);\n}",
+        "language": "typescript",
+        "expectedComplexity": "simple"
+      },
+      "response": null,
+      "jazzAnalysis": {
+        "voice": 0,
+        "choice": 0,
+        "transparency": 0,
+        "trust": 0,
+        "suggestions": []
+      },
+      "userWouldAccept": false,
+      "failureMode": "Request failed with status code 503",
+      "processingTime": 23
+    },
+    {
+      "session": {
+        "id": 20,
+        "scenario": "Add debouncing to search input",
+        "filePath": "components/SearchBar.tsx",
+        "instruction": "Add debouncing to prevent too many API calls",
+        "originalCode": "function SearchBar({ onSearch }) {\n  const handleChange = (e) => {\n    onSearch(e.target.value);\n  };\n  \n  return <input type=\"text\" onChange={handleChange} placeholder=\"Search...\" />;\n}",
+        "language": "typescript",
+        "expectedComplexity": "medium"
+      },
+      "response": null,
+      "jazzAnalysis": {
+        "voice": 0,
+        "choice": 0,
+        "transparency": 0,
+        "trust": 0,
+        "suggestions": []
+      },
+      "userWouldAccept": false,
+      "failureMode": "Request failed with status code 503",
+      "processingTime": 24
+    }
+  ],
+  "analysis": {
+    "overall": {
+      "totalSessions": 20,
+      "successfulSessions": 0,
+      "acceptanceRate": 0,
+      "averageTrust": 0,
+      "averageVoice": 0,
+      "averageChoice": 0,
+      "averageTransparency": 0,
+      "averageProcessingTime": 0
+    },
+    "suggestions": {
+      "allSuggestions": [],
+      "topPatterns": []
+    },
+    "failureModes": [
+      {
+        "mode": "API Error: Request failed with status code 502",
+        "sessions": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17
+        ],
+        "avgTrust": 0
+      },
+      {
+        "mode": "API Error: Request failed with status code 503",
+        "sessions": [
+          18,
+          19,
+          20
+        ],
+        "avgTrust": 0
+      }
+    ],
+    "lowTrustSessions": [],
+    "highTrustSessions": []
+  }
+}
