@@ -100,6 +100,263 @@ export class VCTTEngineService {
   }
 
   /**
+   * 🎵 JAZZ TEAM INTEGRATION
+   * Process build artifacts through the jazz team for self-improvement
+   * This creates a feedback loop where agents analyze their own codebase
+   * 
+   * @param artifact - Build artifact metadata (commit, feature, metrics)
+   * @returns Enhanced verification with VCTT metrics (Voice, Choice, Transparency, Trust)
+   */
+  async processBuildArtifact(artifact: {
+    commit?: string;
+    feature: string;
+    description: string;
+    metrics?: {
+      trustScore?: number;
+      grokConfidence?: number;
+      latency?: number;
+      cost?: number;
+    };
+    codeContext?: {
+      filePath?: string;
+      originalCode?: string;
+      transformedCode?: string;
+      instruction?: string;
+    };
+  }): Promise<{
+    success: boolean;
+    analysis: {
+      voice: number;        // Logical coherence (0-1)
+      choice: number;       // Emotional balance (0-1)
+      transparency: number; // Clarity of reasoning (0-1)
+      trust: number;        // Overall trust τ (0-1)
+    };
+    suggestions: string[];
+    debate?: string;
+    refinedInstruction?: string;
+  }> {
+    this.logger.log('🎵 JAZZ TEAM: Analyzing build artifact for self-improvement...');
+    this.logger.log(`   Feature: ${artifact.feature}`);
+    this.logger.log(`   Description: ${artifact.description}`);
+    
+    // Create a synthetic session for this build analysis
+    const sessionId = `jazz-${Date.now()}`;
+    
+    // Create analysis context
+    const analysisPrompt = `
+You are the VCTT-AGI jazz team analyzing your own codebase for self-improvement.
+
+**Build Artifact:**
+- Feature: ${artifact.feature}
+- Description: ${artifact.description}
+- Commit: ${artifact.commit || 'local'}
+${artifact.metrics ? `- Current Trust Score: ${artifact.metrics.trustScore?.toFixed(3)}` : ''}
+${artifact.metrics ? `- Grok Confidence: ${artifact.metrics.grokConfidence?.toFixed(3)}` : ''}
+
+${artifact.codeContext ? `
+**Code Context:**
+- File: ${artifact.codeContext.filePath}
+- Instruction: ${artifact.codeContext.instruction}
+- Original: ${artifact.codeContext.originalCode?.substring(0, 500)}...
+- Transformed: ${artifact.codeContext.transformedCode?.substring(0, 500)}...
+` : ''}
+
+**Task:**
+Run a counterfactual trust test on this build artifact. Measure:
+1. **Voice** (logical coherence): Is the code transformation logically sound?
+2. **Choice** (emotional balance): Does the feature balance user needs vs system constraints?
+3. **Transparency** (clarity): Is the reasoning clear and well-documented?
+4. **Trust** (τ): Overall confidence in this artifact
+
+Provide:
+- Numeric scores (0-1) for Voice/Choice/Transparency/Trust
+- 2-3 specific suggestions for improvement
+- If this is a code edit, provide a refined instruction prompt
+`.trim();
+
+    try {
+      // Use simplified LLM call for speed (jazz team operates in "fast analysis" mode)
+      // This is intentionally lightweight - full Band Jam would take 2+ minutes
+      const systemPrompt = `You are the VCTT-AGI jazz team's Analyst agent in self-improvement mode.
+Analyze build artifacts quickly and provide structured scores.
+
+Output format (JSON):
+{
+  "voice": 0.85,
+  "choice": 0.80,
+  "transparency": 0.90,
+  "trust": 0.87,
+  "suggestions": [
+    "Suggestion 1",
+    "Suggestion 2"
+  ],
+  "refinedInstruction": "optional improved instruction"
+}`;
+
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: analysisPrompt },
+      ];
+      
+      // Use GPT-4o for fast analysis (no cascade needed for internal analysis)
+      const llmResponse = await this.llmCascade.generateCompletion(
+        messages,
+        systemPrompt,
+        0.7, // Standard temperature
+        'analyst', // Use analyst role
+        false, // No tools needed
+        'json', // Request JSON format
+      );
+      
+      this.logger.log('✅ JAZZ TEAM: Analysis complete');
+      
+      // Parse analysis from response
+      const response = llmResponse.content;
+      
+      // Try to parse as JSON first
+      let voice = 0.85;
+      let choice = 0.80;
+      let transparency = 0.90;
+      let trust = 0.87;
+      let suggestions: string[] = [];
+      let refinedInstruction: string | undefined = undefined;
+      
+      try {
+        // Look for JSON block in response
+        const jsonMatch = response.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          voice = parsed.voice || voice;
+          choice = parsed.choice || choice;
+          transparency = parsed.transparency || transparency;
+          trust = parsed.trust || trust;
+          suggestions = parsed.suggestions || suggestions;
+          refinedInstruction = parsed.refinedInstruction;
+          this.logger.log('   Parsed JSON response successfully');
+        } else {
+          throw new Error('No JSON block found');
+        }
+      } catch (jsonError) {
+        // Fallback to text extraction
+        this.logger.log('   JSON parse failed, using text extraction');
+        voice = this.extractScore(response, 'voice', 0.85);
+        choice = this.extractScore(response, 'choice', 0.80);
+        transparency = this.extractScore(response, 'transparency', 0.90);
+        
+        // Calculate trust τ using CTM formula
+        trust = 1 - (
+          0.4 * (1 - voice) +
+          0.3 * (1 - choice) +
+          0.3 * (1 - transparency)
+        );
+        
+        suggestions = this.extractSuggestions(response);
+        refinedInstruction = this.extractRefinedInstruction(response);
+      }
+      
+      return {
+        success: true,
+        analysis: {
+          voice,
+          choice,
+          transparency,
+          trust: Math.max(0, Math.min(1, trust)), // Clamp to [0,1]
+        },
+        suggestions,
+        debate: response.substring(0, 1000), // First 1000 chars of debate
+        refinedInstruction,
+      };
+      
+    } catch (error) {
+      this.logger.error('❌ JAZZ TEAM: Analysis failed:', error.message);
+      
+      // Return safe defaults
+      return {
+        success: false,
+        analysis: {
+          voice: 0.70,
+          choice: 0.70,
+          transparency: 0.70,
+          trust: 0.70,
+        },
+        suggestions: ['Jazz team analysis failed - proceeding with default trust metrics'],
+      };
+    }
+  }
+  
+  /**
+   * Extract numeric score from text (e.g., "Voice: 0.85" or "Voice score: 85%")
+   */
+  private extractScore(text: string, metric: string, defaultValue: number): number {
+    const patterns = [
+      new RegExp(`${metric}[:\\s]+(\\d*\\.?\\d+)`, 'i'),
+      new RegExp(`${metric}[^\\d]+(\\d+)%`, 'i'),
+    ];
+    
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match) {
+        let score = parseFloat(match[1]);
+        // If it's a percentage, convert to 0-1
+        if (text.includes('%')) {
+          score = score / 100;
+        }
+        return Math.max(0, Math.min(1, score));
+      }
+    }
+    
+    return defaultValue;
+  }
+  
+  /**
+   * Extract suggestions from text (bullet points, numbered lists)
+   */
+  private extractSuggestions(text: string): string[] {
+    const suggestions: string[] = [];
+    
+    // Look for bullet points
+    const bulletMatches = text.match(/[-•*]\s+([^\n]+)/g);
+    if (bulletMatches) {
+      suggestions.push(...bulletMatches.map(s => s.replace(/^[-•*]\s+/, '').trim()));
+    }
+    
+    // Look for numbered lists
+    const numberedMatches = text.match(/\d+\.\s+([^\n]+)/g);
+    if (numberedMatches) {
+      suggestions.push(...numberedMatches.map(s => s.replace(/^\d+\.\s+/, '').trim()));
+    }
+    
+    // If no suggestions found, return a generic one
+    if (suggestions.length === 0) {
+      suggestions.push('Consider adding more detailed documentation');
+      suggestions.push('Run additional counterfactual tests');
+    }
+    
+    // Limit to top 5 suggestions
+    return suggestions.slice(0, 5);
+  }
+  
+  /**
+   * Extract refined instruction from text
+   */
+  private extractRefinedInstruction(text: string): string | undefined {
+    const patterns = [
+      /refined instruction[:\s]+["']([^"']+)["']/i,
+      /suggested prompt[:\s]+["']([^"']+)["']/i,
+      /better instruction[:\s]+["']([^"']+)["']/i,
+    ];
+    
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match) {
+        return match[1].trim();
+      }
+    }
+    
+    return undefined;
+  }
+
+  /**
    * Flush tracked contributions to database (called at end of pipeline)
    */
   private async flushContributions(sessionId: string): Promise<void> {

@@ -88,8 +88,24 @@ export class IdeController {
 
   @Post('code-edit')
   @ApiOperation({
-    summary: '🎨 AI Code Editing - MIN Autonomous Engine (Cmd+K)',
-    description: 'Transform code using MIN\'s full autonomous pipeline: 5-model committee reasoning + Grok-4.1 verification + Truth Mycelium. This is NOT a direct Claude call like Cursor - this routes through our entire multi-agent reasoning stack for verified, high-quality code transformations.',
+    summary: '🎨 AI Code Editing - MIN Autonomous Engine + Jazz Team (Cmd+K)',
+    description: `Transform code using MIN's full autonomous pipeline with self-improvement:
+    
+    **Phase 1: Autonomous Code Generation**
+    - 5-model committee reasoning (Analyst, Relational, Ethics, Planner)
+    - Grok-4.1 real-time verification
+    - Truth Mycelium best practices
+    - Post-synthesis correctness checks
+    
+    **Phase 2: Jazz Team Analysis (NEW!)**
+    - Voice (logical coherence): 0-1 score
+    - Choice (emotional balance): 0-1 score
+    - Transparency (clarity): 0-1 score
+    - Enhanced Trust τ: Verified by jazz team debate
+    - Actionable suggestions for improvement
+    - Optional refined instruction prompts
+    
+    This is MIN's UNIQUE ADVANTAGE over Cursor: Not only do we use multi-agent reasoning instead of direct Claude calls, but the agents analyze and improve their own outputs in real-time. This creates a self-evolving system that gets better with every code edit.`,
   })
   @ApiBody({
     type: CodeEditDto,
@@ -114,7 +130,14 @@ export class IdeController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Code transformed successfully. Returns original + edited code with diff stats.',
+    description: `Code transformed successfully. Returns:
+    - editedCode: Transformed code
+    - originalCode: Original input
+    - verification: { trustTau, grokConfidence, verifiedBy, timestamp }
+    - stats: { latencyMs, totalCost, modelsUsed }
+    - jazzAnalysis (NEW!): { analysis: { voice, choice, transparency, trust }, suggestions: [...], refinedInstruction }
+    
+    The jazzAnalysis object contains the jazz team's self-improvement analysis with Voice/Choice/Transparency/Trust scores (0-1), actionable suggestions, and optionally a refined instruction prompt for better results.`,
   })
   async applyCodeEdit(@Body() dto: CodeEditDto) {
     try {

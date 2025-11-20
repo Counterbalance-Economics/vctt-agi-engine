@@ -278,6 +278,51 @@ export class IdeService {
       this.logger.log(`   Models Used: Analyst, Relational, Ethics, Grok-4.1, Synthesizer`);
       this.logger.log(`   Latency: ${result.stats.latencyMs}ms`);
 
+      // 🎵 JAZZ TEAM INTEGRATION: Analyze this code edit for self-improvement
+      try {
+        this.logger.log('🎵 Triggering jazz team analysis...');
+        
+        const jazzAnalysis = await this.vcttEngine.processBuildArtifact({
+          feature: 'Code Edit (Cmd+K)',
+          description: `Applied instruction: "${instruction.substring(0, 100)}..."`,
+          metrics: {
+            trustScore: result.verification.trustTau,
+            grokConfidence: result.verification.grokConfidence,
+            latency: result.stats.latencyMs,
+            cost: result.stats.totalCost,
+          },
+          codeContext: {
+            filePath,
+            originalCode: originalCode.substring(0, 1000), // First 1KB only
+            transformedCode: result.editedCode.substring(0, 1000),
+            instruction,
+          },
+        });
+        
+        if (jazzAnalysis.success) {
+          this.logger.log('✅ Jazz team analysis complete:');
+          this.logger.log(`   Voice (logic): ${jazzAnalysis.analysis.voice.toFixed(2)}`);
+          this.logger.log(`   Choice (balance): ${jazzAnalysis.analysis.choice.toFixed(2)}`);
+          this.logger.log(`   Transparency: ${jazzAnalysis.analysis.transparency.toFixed(2)}`);
+          this.logger.log(`   Enhanced Trust τ: ${jazzAnalysis.analysis.trust.toFixed(3)}`);
+          
+          if (jazzAnalysis.suggestions.length > 0) {
+            this.logger.log('   Suggestions:');
+            jazzAnalysis.suggestions.forEach((s, i) => {
+              this.logger.log(`      ${i + 1}. ${s.substring(0, 80)}`);
+            });
+          }
+          
+          // Attach jazz analysis to result
+          result.jazzAnalysis = jazzAnalysis;
+        } else {
+          this.logger.warn('⚠️  Jazz team analysis failed, proceeding without enhancement');
+        }
+      } catch (jazzError) {
+        this.logger.warn(`⚠️  Jazz team analysis error: ${jazzError.message}`);
+        // Non-blocking - continue even if jazz analysis fails
+      }
+
       return result;
     } catch (error) {
       this.logger.error(`❌ Autonomous Code Edit failed: ${error.message}`);
