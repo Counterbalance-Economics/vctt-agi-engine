@@ -7,6 +7,7 @@ import { AnalyticsService } from './services/analytics.service';
 import { LLMService } from './services/llm.service';
 import { LLMCascadeService } from './services/llm-cascade.service';
 import { LLMCommitteeService } from './services/llm-committee.service';
+import { LLMCacheService } from './services/llm-cache.service';
 import { TruthMyceliumService } from './services/truth-mycelium.service';
 import { SessionController } from './controllers/session.controller';
 import { HealthController } from './controllers/health.controller';
@@ -63,6 +64,7 @@ import { StreamingGateway } from './gateways/streaming.gateway';
     LLMService,
     LLMCascadeService,
     LLMCommitteeService,
+    LLMCacheService, // Phase 3.5+ Performance Optimization
     TruthMyceliumService,
     
     // Agents

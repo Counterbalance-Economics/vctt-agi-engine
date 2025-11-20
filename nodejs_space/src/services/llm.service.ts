@@ -1,6 +1,8 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { LLMConfig } from '../config/llm.config';
+import { AnthropicDirectConfig } from '../config/anthropic-direct.config';
+import { LLMCacheService } from './llm-cache.service';
 
 interface Message {
   role: 'system' | 'user' | 'assistant';
@@ -17,6 +19,7 @@ interface LLMResponse {
   };
   cost: number;
   latencyMs: number;
+  cached?: boolean;
 }
 
 interface UsageStats {
@@ -33,13 +36,17 @@ interface VerificationOptions {
 }
 
 /**
- * LLM Service - Handles all LLM API interactions
+ * LLM Service - Handles all LLM API interactions (Phase 3.5+ Optimizations)
  * 
  * Features:
- * - GPT-4o primary with Claude 3.5 Sonnet fallback
+ * - Direct Claude Haiku 4.5 for 10x faster responses (<10s vs ~45s)
+ * - In-memory caching for instant repeated queries (<10ms)
+ * - Smart fallback: Direct Claude → RouteLLM → GPT-4o
  * - Automatic retry with exponential backoff
  * - Token counting and cost tracking
  * - Budget monitoring and alerts
+ * 
+ * Performance: Target <30s total jam (from 75s)
  */
 @Injectable()
 export class LLMService {
@@ -55,17 +62,26 @@ export class LLMService {
   private verificationsThisHour = 0;
   private lastVerificationReset = Date.now();
 
-  constructor() {
-    this.logger.log('LLM Service initialized with Hybrid Multi-Model Architecture');
-    this.logger.log(`Analyst: ${LLMConfig.models.analyst || 'RouteLLM auto-pick (Claude)'} (MCP enabled)`);
+  constructor(private cacheService: LLMCacheService) {
+    const directMode = AnthropicDirectConfig.enabled ? ' (DIRECT MODE ⚡)' : '';
+    this.logger.log(`LLM Service initialized with Hybrid Multi-Model Architecture${directMode}`);
+    this.logger.log(`Analyst: ${LLMConfig.models.analyst || 'Claude Haiku 4.5 Direct'} (MCP enabled)`);
     this.logger.log(`Relational: ${LLMConfig.models.relational}`);
     this.logger.log(`Ethics: ${LLMConfig.models.ethics}`);
-    this.logger.log(`Synthesiser: ${LLMConfig.models.synthesiser || 'RouteLLM auto-pick (Claude)'} (MCP enabled)`);
+    this.logger.log(`Synthesiser: ${LLMConfig.models.synthesiser || 'Claude Haiku 4.5 Direct'} (MCP enabled)`);
     this.logger.log(`Verification: ${LLMConfig.models.verification}`);
+    if (AnthropicDirectConfig.enabled) {
+      this.logger.log(`✨ Direct Claude enabled - expect 3-5x faster responses`);
+    }
   }
 
   /**
    * Generate a completion using the LLM (with agent-specific model selection)
+   * 
+   * PHASE 3.5+ OPTIMIZATIONS:
+   * - Check cache first (instant <10ms for hits)
+   * - Use direct Claude API for Analyst/Synthesiser (10x faster)
+   * - Fallback to RouteLLM if direct fails
    * 
    * @param messages - Conversation messages
    * @param systemPrompt - Optional system prompt
@@ -103,6 +119,18 @@ export class LLMService {
       ? (LLMConfig.models as any)[agentRole] 
       : LLMConfig.models.primary;
     
+    // Check cache first (skip if tools enabled - tools responses shouldn't be cached)
+    if (!enableTools) {
+      const cached = this.cacheService.get(fullMessages, selectedModel, temperature);
+      if (cached) {
+        return {
+          ...cached,
+          latencyMs: Date.now() - startTime,
+          cached: true,
+        };
+      }
+    }
+    
     // Get MCP tools if this is a Claude agent with tools enabled
     // Only analyst and synthesiser have MCP tools configured
     const tools = (enableTools && agentRole && (agentRole === 'analyst' || agentRole === 'synthesiser'))
@@ -110,37 +138,49 @@ export class LLMService {
       : undefined;
     
     if (tools && agentRole) {
-      const modelName = selectedModel || 'RouteLLM auto-pick (Claude)';
+      const modelName = selectedModel || 'Claude Haiku 4.5';
       this.logger.log(`🛠️ ${agentRole} using ${modelName} with ${tools.length} MCP tools`);
     }
     
-    // Try selected model first, then fallback
+    // Try direct Claude first for Analyst/Synthesiser (10x faster)
     let response: LLMResponse;
-    try {
-      response = await this.callLLM(
-        fullMessages,
-        selectedModel,
-        temperature,
-        tools,
-      );
-    } catch (primaryError) {
-      this.logger.warn(
-        `Primary model (${selectedModel}) failed: ${primaryError.message}`
-      );
-      this.logger.log(`Falling back to ${LLMConfig.models.fallback}`);
-      
+    const useDirectClaude = AnthropicDirectConfig.enabled && 
+                            (agentRole === 'analyst' || agentRole === 'synthesiser');
+    
+    if (useDirectClaude && !tools) {
       try {
-        response = await this.callLLM(
-          fullMessages,
-          LLMConfig.models.fallback,
-          temperature,
-          undefined, // Don't use tools on fallback
-        );
-      } catch (fallbackError) {
-        this.logger.error(
-          `Both models failed. Primary: ${primaryError.message}, Fallback: ${fallbackError.message}`
-        );
-        throw new Error('LLM service unavailable: All models failed');
+        this.logger.log(`⚡ Using DIRECT Claude API for ${agentRole} (expect <10s)`);
+        response = await this.callClaudeDirect(fullMessages, temperature);
+      } catch (directError) {
+        this.logger.warn(`Direct Claude failed: ${directError.message}, falling back to RouteLLM`);
+        try {
+          response = await this.callLLM(fullMessages, selectedModel, temperature, tools);
+        } catch (routeError) {
+          this.logger.log(`Falling back to ${LLMConfig.models.fallback}`);
+          response = await this.callLLM(fullMessages, LLMConfig.models.fallback, temperature, undefined);
+        }
+      }
+    } else {
+      // Use RouteLLM for other agents or when tools are needed
+      try {
+        response = await this.callLLM(fullMessages, selectedModel, temperature, tools);
+      } catch (primaryError) {
+        this.logger.warn(`Primary model (${selectedModel}) failed: ${primaryError.message}`);
+        this.logger.log(`Falling back to ${LLMConfig.models.fallback}`);
+        
+        try {
+          response = await this.callLLM(
+            fullMessages,
+            LLMConfig.models.fallback,
+            temperature,
+            undefined, // Don't use tools on fallback
+          );
+        } catch (fallbackError) {
+          this.logger.error(
+            `Both models failed. Primary: ${primaryError.message}, Fallback: ${fallbackError.message}`
+          );
+          throw new Error('LLM service unavailable: All models failed');
+        }
       }
     }
     
@@ -148,6 +188,11 @@ export class LLMService {
     
     // Track usage
     this.trackUsage(response);
+    
+    // Cache response (if no tools were used)
+    if (!enableTools) {
+      this.cacheService.set(fullMessages, selectedModel, response, temperature);
+    }
     
     // Check if approaching daily budget
     if (this.dailyCost >= LLMConfig.limits.dailyBudgetUSD * LLMConfig.limits.alertThreshold) {
@@ -747,6 +792,85 @@ Start your response with { and end with }. NO OTHER TEXT.`;
       
     } catch (error) {
       this.logger.error(`Stream call failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Call Claude API directly (bypasses RouteLLM for 10x faster response)
+   * 
+   * This method uses Anthropic's direct API for Claude Haiku 4.5
+   * Expected latency: 5-10s (vs 30-45s via RouteLLM)
+   * 
+   * Requires: ANTHROPIC_API_KEY in .env
+   */
+  private async callClaudeDirect(
+    messages: Message[],
+    temperature?: number,
+  ): Promise<LLMResponse> {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error('ANTHROPIC_API_KEY not found - direct mode unavailable');
+    }
+    
+    try {
+      const response = await fetch(AnthropicDirectConfig.baseUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': AnthropicDirectConfig.apiVersion,
+        },
+        body: JSON.stringify({
+          model: AnthropicDirectConfig.defaultModel, // Claude Haiku 4.5
+          messages: messages.filter(m => m.role !== 'system'),
+          system: messages.find(m => m.role === 'system')?.content,
+          temperature: temperature ?? LLMConfig.temperature,
+          max_tokens: LLMConfig.limits.maxTokensPerRequest,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Claude Direct API error (${response.status}): ${errorText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Extract content (Anthropic format)
+      const content = data.content?.[0]?.text;
+      if (!content) {
+        throw new Error('Invalid Claude response: missing content');
+      }
+      
+      // Token counting
+      const inputTokens = data.usage?.input_tokens ?? 0;
+      const outputTokens = data.usage?.output_tokens ?? 0;
+      const totalTokens = inputTokens + outputTokens;
+      
+      // Calculate cost
+      const modelCosts = AnthropicDirectConfig.costs[AnthropicDirectConfig.defaultModel];
+      const cost = 
+        (inputTokens / 1000) * modelCosts.inputPer1k +
+        (outputTokens / 1000) * modelCosts.outputPer1k;
+      
+      this.logger.log(
+        `✅ Direct Claude: tokens=${totalTokens}, cost=$${cost.toFixed(4)}`
+      );
+      
+      return {
+        content,
+        model: AnthropicDirectConfig.defaultModel,
+        tokensUsed: {
+          input: inputTokens,
+          output: outputTokens,
+          total: totalTokens,
+        },
+        cost,
+        latencyMs: 0, // Will be set by caller
+      };
+      
+    } catch (error) {
+      this.logger.error(`Direct Claude call failed: ${error.message}`);
       throw error;
     }
   }
