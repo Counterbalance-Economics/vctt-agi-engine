@@ -107,7 +107,7 @@ export const LLMConfig = {
       inputPer1k: 0.002,         // $2.00 per 1M input tokens - CURRENT STABLE
       outputPer1k: 0.010,        // $10.00 per 1M output tokens
     },
-    'grok-2-1212': {
+    'grok-4': {
       inputPer1k: 0.002,         // $2.00 per 1M input tokens
       outputPer1k: 0.010,        // $10.00 per 1M output tokens
     },
