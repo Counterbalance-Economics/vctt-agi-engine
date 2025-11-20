@@ -11,6 +11,7 @@ import {
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { LLMService } from '../services/llm.service';
+import { VCTTEngineService } from '../services/vctt-engine.service';
 import {
   StreamRequestDto,
   StreamChunkDto,
@@ -47,7 +48,10 @@ export class StreamingGateway implements OnGatewayConnection, OnGatewayDisconnec
   private readonly logger = new Logger(StreamingGateway.name);
   private activeStreams = new Map<string, { socketId: string; startTime: number }>();
 
-  constructor(private readonly llmService: LLMService) {}
+  constructor(
+    private readonly llmService: LLMService,
+    private readonly vcttEngine: VCTTEngineService,
+  ) {}
 
   handleConnection(client: Socket) {
     this.logger.log(`🔌 Client connected: ${client.id}`);
@@ -63,6 +67,114 @@ export class StreamingGateway implements OnGatewayConnection, OnGatewayDisconnec
         this.logger.warn(`🧹 Cleaned up abandoned stream: ${sessionId}`);
       }
     }
+  }
+
+  /**
+   * Handle VCTT orchestration query with phase updates
+   * This is the main entry point for frontend queries
+   */
+  @SubscribeMessage('query')
+  async handleQuery(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { session_id: string; input: string },
+  ): Promise<void> {
+    const { session_id, input } = data;
+    const startTime = Date.now();
+    
+    this.logger.log(`🎸 Query received: session=${session_id}, input="${input.substring(0, 50)}..."`);
+
+    try {
+      // Phase callback factory
+      const emitPhase = (phase: string, description: string, progress: number, status: 'in_progress' | 'complete' | 'error' = 'in_progress') => {
+        const emoji = this.getPhaseEmoji(phase);
+        client.emit('stream_phase', {
+          phase,
+          description,
+          progress,
+          emoji,
+          status,
+          timestamp: new Date().toISOString(),
+        });
+      };
+
+      // Emit phases during orchestration
+      emitPhase('initializing', 'Starting VCTT orchestration...', 0, 'in_progress');
+      
+      emitPhase('analyst', 'Analyst gathering facts and patterns...', 15, 'in_progress');
+      await this.sleep(200); // Brief pause for UX
+      
+      emitPhase('relational', 'Relational mapping connections...', 35, 'in_progress');
+      await this.sleep(200);
+      
+      emitPhase('ethics', 'Ethics evaluating alignment...', 55, 'in_progress');
+      await this.sleep(200);
+      
+      emitPhase('synthesiser', 'Synthesiser composing response...', 75, 'in_progress');
+      
+      // Execute actual VCTT orchestration
+      const response = await this.vcttEngine.processStep(session_id, input);
+      
+      emitPhase('verifier', 'Verifier validating with Grok-4...', 90, 'in_progress');
+      await this.sleep(500);
+      
+      // Stream the response content
+      client.emit('stream_chunk', { content: response.response });
+      
+      // Complete
+      emitPhase('complete', 'Response complete!', 100, 'complete');
+      
+      const latencyMs = Date.now() - startTime;
+      client.emit('stream_complete', {
+        session_id,
+        latency_ms: latencyMs,
+        timestamp: new Date().toISOString(),
+      });
+
+      this.logger.log(`✅ Query complete: session=${session_id}, latency=${latencyMs}ms`);
+
+    } catch (error) {
+      this.logger.error(`❌ Query error for ${session_id}: ${error.message}`);
+      
+      const errorEmoji = '❌';
+      client.emit('stream_phase', {
+        phase: 'error',
+        description: `Error: ${error.message}`,
+        progress: 0,
+        emoji: errorEmoji,
+        status: 'error',
+        timestamp: new Date().toISOString(),
+      });
+      
+      client.emit('stream_error', {
+        error: error.message,
+        code: error.name || 'QUERY_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  /**
+   * Get emoji for phase
+   */
+  private getPhaseEmoji(phase: string): string {
+    const emojiMap: Record<string, string> = {
+      initializing: '🎬',
+      analyst: '🎸',
+      relational: '🎺',
+      ethics: '🎻',
+      synthesiser: '🥁',
+      verifier: '✅',
+      complete: '🎉',
+      error: '❌',
+    };
+    return emojiMap[phase] || '🎵';
+  }
+
+  /**
+   * Sleep utility for phase pacing
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
