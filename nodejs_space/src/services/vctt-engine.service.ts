@@ -1052,7 +1052,8 @@ Use your advanced reasoning to deeply analyze the transformation quality.`;
     const sessionId = `code_edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     // Format the code edit as a conversation for the autonomous pipeline
-    const codeEditQuery = `You are an expert code editor. Transform the following ${language || 'code'} according to the instruction.
+    // Enhanced with jazz team's top 5 best practices
+    const codeEditQuery = `You are an expert code editor powered by MIN's autonomous reasoning engine. Transform the following ${language || 'code'} according to the instruction.
 
 FILE: ${filePath}
 LANGUAGE: ${language || 'auto-detect'}
@@ -1064,13 +1065,45 @@ ${originalCode}
 
 INSTRUCTION: ${instruction}
 
-OUTPUT REQUIREMENTS:
+🎯 CORE REQUIREMENTS:
 1. Output ONLY the transformed code - no explanations, no markdown blocks
 2. Preserve original structure and style unless instructed otherwise
 3. Ensure syntactic correctness
-4. Add comments only if they improve clarity
+4. Follow the best practices below
 
-IMPORTANT: Return ONLY the final code, nothing else.`;
+🎵 JAZZ TEAM BEST PRACTICES (self-learned from production data):
+
+📖 1. DOCUMENTATION & TRANSPARENCY (Priority: HIGH)
+- Add clear inline comments for non-obvious logic (1-2 lines max per section)
+- Include JSDoc/TSDoc for public functions with complex signatures
+- Explain trade-offs when multiple approaches exist
+- Document edge cases and assumptions
+
+🛡️ 2. TYPE SAFETY & VALIDATION
+- Prefer Zod schemas over manual validation (runtime + compile-time safety)
+- Use TypeScript strict mode features (strictNullChecks, noImplicitAny)
+- Add null/undefined guards for external data
+- Use const assertions for literal types
+
+⚠️ 3. ERROR HANDLING & RESILIENCE
+- Wrap async operations in try-catch with structured logging
+- Set timeouts for external calls (10s default, configurable via env)
+- Return user-friendly error messages (NEVER expose stack traces)
+- Add specific catch blocks for known error types
+
+⚡ 4. PERFORMANCE OPTIMIZATION
+- Identify cacheable operations (expensive DB queries, APIs, computed values)
+- Use React.memo for pure components, useCallback for event handlers
+- Add performance metrics for slow operations (>500ms)
+- Implement pagination for large data sets
+
+🔒 5. SECURITY BEST PRACTICES
+- NEVER trust user input - validate and sanitize everything
+- Use parameterized queries (prepared statements) for SQL
+- Implement rate limiting on auth endpoints (5 attempts / 15 min default)
+- Store secrets in environment variables, never hardcode
+
+IMPORTANT: Return ONLY the final code, nothing else. No explanations, no markdown blocks.`;
 
     const messages: any[] = [
       { role: 'user', content: codeEditQuery, timestamp: new Date() }
