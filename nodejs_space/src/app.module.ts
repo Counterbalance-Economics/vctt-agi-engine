@@ -10,6 +10,7 @@ import { LLMCascadeService } from './services/llm-cascade.service';
 import { LLMCommitteeService } from './services/llm-committee.service';
 import { LLMCacheService } from './services/llm-cache.service';
 import { TruthMyceliumService } from './services/truth-mycelium.service';
+import { DeepAgentService } from './services/deepagent.service';
 import { SessionController } from './controllers/session.controller';
 import { HealthController } from './controllers/health.controller';
 import { AnalyticsController } from './controllers/analytics.controller';
@@ -74,6 +75,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     LLMCommitteeService,
     LLMCacheService, // Phase 3.5+ Performance Optimization
     TruthMyceliumService,
+    DeepAgentService, // Autonomous engineering co-pilot
     
     // Agents
     PlannerAgent,

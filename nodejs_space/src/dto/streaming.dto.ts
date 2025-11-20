@@ -173,6 +173,15 @@ export class StreamRequestDto {
     required: false 
   })
   history?: Array<{ role: string; content: string }>;
+
+  @ApiProperty({ 
+    description: 'Operating mode (normal or deepagent)',
+    example: 'normal',
+    enum: ['normal', 'deepagent'],
+    required: false,
+    default: 'normal'
+  })
+  mode?: 'normal' | 'deepagent';
 }
 
 /**

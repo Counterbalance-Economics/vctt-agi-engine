@@ -12,6 +12,7 @@ import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { LLMService } from '../services/llm.service';
 import { VCTTEngineService } from '../services/vctt-engine.service';
+import { DeepAgentService } from '../services/deepagent.service';
 import {
   StreamRequestDto,
   StreamChunkDto,
@@ -51,6 +52,7 @@ export class StreamingGateway implements OnGatewayConnection, OnGatewayDisconnec
   constructor(
     private readonly llmService: LLMService,
     private readonly vcttEngine: VCTTEngineService,
+    private readonly deepAgent: DeepAgentService,
   ) {}
 
   handleConnection(client: Socket) {
@@ -178,6 +180,62 @@ export class StreamingGateway implements OnGatewayConnection, OnGatewayDisconnec
   }
 
   /**
+   * Handle DeepAgent command execution
+   * This powers the autonomous engineering co-pilot /deep interface
+   */
+  @SubscribeMessage('deepagent_command')
+  async handleDeepAgentCommand(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { input: string; session_id?: string },
+  ): Promise<void> {
+    const startTime = Date.now();
+    const sessionId = data.session_id || `deepagent_${randomUUID()}`;
+    
+    this.logger.log(`🤖 DeepAgent command received: "${data.input.substring(0, 50)}..."`);
+
+    try {
+      // Emit start event
+      client.emit('stream_start', {
+        sessionId,
+        model: 'deepagent',
+        timestamp: new Date().toISOString(),
+      });
+
+      // Process command - this will execute real git/file/build operations
+      const output = await this.deepAgent.processCommand(data.input);
+      
+      // Stream output in chunks for terminal effect
+      const chunks = this.chunkOutput(output, 100);
+      for (const chunk of chunks) {
+        client.emit('stream_chunk', {
+          chunk,
+          timestamp: new Date().toISOString(),
+        });
+        await this.sleep(10); // Small delay for terminal typing effect
+      }
+
+      // Emit completion
+      const latencyMs = Date.now() - startTime;
+      client.emit('stream_complete', {
+        sessionId,
+        latency_ms: latencyMs,
+        timestamp: new Date().toISOString(),
+      });
+
+      this.logger.log(`✅ DeepAgent command complete: ${latencyMs}ms`);
+
+    } catch (error) {
+      this.logger.error(`❌ DeepAgent error: ${error.message}`);
+      
+      client.emit('stream_error', {
+        error: error.message,
+        code: 'DEEPAGENT_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  /**
    * Handle streaming request from client
    */
   @SubscribeMessage('stream_request')
@@ -185,6 +243,14 @@ export class StreamingGateway implements OnGatewayConnection, OnGatewayDisconnec
     @ConnectedSocket() client: Socket,
     @MessageBody() data: StreamRequestDto,
   ): Promise<void> {
+    // Route to DeepAgent if mode is 'deepagent'
+    if (data.mode === 'deepagent') {
+      return await this.handleDeepAgentCommand(client, {
+        input: data.message,
+        session_id: `deepagent_${randomUUID()}`,
+      });
+    }
+
     const sessionId = `stream_${randomUUID()}`;
     const startTime = Date.now();
     
@@ -319,6 +385,17 @@ export class StreamingGateway implements OnGatewayConnection, OnGatewayDisconnec
     } catch (error) {
       throw error; // Will be caught by handleStreamRequest
     }
+  }
+
+  /**
+   * Chunk output for terminal typing effect
+   */
+  private chunkOutput(text: string, chunkSize: number): string[] {
+    const chunks: string[] = [];
+    for (let i = 0; i < text.length; i += chunkSize) {
+      chunks.push(text.substring(i, i + chunkSize));
+    }
+    return chunks;
   }
 
   /**
