@@ -659,4 +659,97 @@ export class IdeService {
     };
     return types[ext] || 'application/octet-stream';
   }
+
+  /**
+   * Search for text across all project files
+   */
+  async searchFiles(
+    query: string,
+    caseSensitive: boolean = false,
+    useRegex: boolean = false,
+    maxResults: number = 100,
+  ): Promise<any> {
+    try {
+      if (!query || query.trim().length === 0) {
+        return { success: true, results: [] };
+      }
+
+      const results: any[] = [];
+      const searchRoot = this.projectRoot;
+
+      // Use grep for efficient searching
+      let grepCommand = useRegex
+        ? `grep -rn ${caseSensitive ? '' : '-i'} -E "${query.replace(/"/g, '\\"')}"`
+        : `grep -rn ${caseSensitive ? '' : '-i'} -F "${query.replace(/"/g, '\\"')}"`;
+
+      // Exclude common directories
+      grepCommand += ` --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist --exclude-dir=build --exclude-dir=.next`;
+
+      // Add file path
+      grepCommand += ` ${searchRoot}`;
+
+      try {
+        const { stdout } = await execAsync(grepCommand, {
+          maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+          timeout: 30000, // 30s timeout
+        });
+
+        const lines = stdout.split('\n').slice(0, maxResults);
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+
+          // Parse grep output: /path/to/file:123:content
+          const match = line.match(/^(.+?):(\d+):(.+)$/);
+          if (match) {
+            const [, filePath, lineNumber, lineContent] = match;
+            const relativePath = filePath.replace(searchRoot, '');
+
+            // Find match position in line
+            let matchStart = 0;
+            let matchEnd = 0;
+
+            if (useRegex) {
+              const regex = new RegExp(query, caseSensitive ? 'g' : 'gi');
+              const regexMatch = regex.exec(lineContent);
+              if (regexMatch) {
+                matchStart = regexMatch.index;
+                matchEnd = regexMatch.index + regexMatch[0].length;
+              }
+            } else {
+              const searchStr = caseSensitive ? lineContent : lineContent.toLowerCase();
+              const queryStr = caseSensitive ? query : query.toLowerCase();
+              matchStart = searchStr.indexOf(queryStr);
+              matchEnd = matchStart + query.length;
+            }
+
+            results.push({
+              filePath: relativePath,
+              lineNumber: parseInt(lineNumber, 10),
+              lineContent,
+              matchStart,
+              matchEnd,
+            });
+          }
+        }
+      } catch (grepError: any) {
+        // grep returns non-zero exit code when no matches found
+        if (grepError.code === 1) {
+          // No matches found - this is normal
+          return { success: true, results: [] };
+        }
+        throw grepError;
+      }
+
+      return {
+        success: true,
+        results,
+        count: results.length,
+        truncated: results.length >= maxResults,
+      };
+    } catch (error) {
+      this.logger.error(`Search files error: ${error.message}`);
+      return { success: false, error: error.message, results: [] };
+    }
+  }
 }

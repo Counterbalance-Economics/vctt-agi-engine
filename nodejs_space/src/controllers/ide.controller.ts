@@ -245,4 +245,37 @@ export class IdeController {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+
+  @Post('search-files')
+  @ApiOperation({
+    summary: 'Search in files',
+    description: 'Search for text across all project files (Cmd+Shift+F)',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search query' },
+        caseSensitive: { type: 'boolean', default: false },
+        useRegex: { type: 'boolean', default: false },
+        maxResults: { type: 'number', default: 100 },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Search results retrieved',
+  })
+  async searchFiles(@Body() body: any) {
+    try {
+      return await this.ideService.searchFiles(
+        body.query,
+        body.caseSensitive || false,
+        body.useRegex || false,
+        body.maxResults || 100,
+      );
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 }
