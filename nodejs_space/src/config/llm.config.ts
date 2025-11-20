@@ -31,9 +31,8 @@ export const LLMConfig = {
     fallback: 'gpt-4o-mini',                    // Fallback to GPT-4o-mini (faster/cheaper)
     
     // 🥁 GROK VERIFIER - Truth Anchor & Drummer
-    // Using: 'grok-beta' (current stable xAI API model)
-    // Alternative: 'grok-2-1212' (latest version)
-    verification: 'grok-beta',                  // Grok Beta (current xAI API stable)
+    // Using: 'grok-2-1212' (latest stable xAI API model)
+    verification: 'grok-2-1212',                // Grok 2 (Dec 2024 - current stable)
   },
   
   // MCP Tool Configuration (ENABLED - schemas fixed per Claude requirements)
