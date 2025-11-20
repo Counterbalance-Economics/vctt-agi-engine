@@ -11,11 +11,13 @@ import { LLMCommitteeService } from './services/llm-committee.service';
 import { LLMCacheService } from './services/llm-cache.service';
 import { TruthMyceliumService } from './services/truth-mycelium.service';
 import { DeepAgentService } from './services/deepagent.service';
+import { IdeService } from './services/ide.service';
 import { SessionController } from './controllers/session.controller';
 import { HealthController } from './controllers/health.controller';
 import { AnalyticsController } from './controllers/analytics.controller';
 import { LLMCommitteeController } from './controllers/llm-committee.controller';
 import { TruthMyceliumController } from './controllers/truth-mycelium.controller';
+import { IdeController } from './controllers/ide.controller';
 import { PlannerAgent } from './agents/planner.agent';
 import { AnalystAgent } from './agents/analyst.agent';
 import { RelationalAgent } from './agents/relational.agent';
@@ -76,6 +78,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     LLMCacheService, // Phase 3.5+ Performance Optimization
     TruthMyceliumService,
     DeepAgentService, // Autonomous engineering co-pilot
+    IdeService, // IDE operations (Phase 3.5)
     
     // Agents
     PlannerAgent,
@@ -106,6 +109,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     AnalyticsController,
     LLMCommitteeController,
     TruthMyceliumController,
+    IdeController,
   ],
 })
 export class AppModule {}
