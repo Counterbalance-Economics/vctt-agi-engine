@@ -1,9 +1,10 @@
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Message } from '../entities/message.entity';
 import { InternalState } from '../entities/internal-state.entity';
 import { LLMService } from '../services/llm.service';
 import { TruthMyceliumService, VerifiedFact } from '../services/truth-mycelium.service';
+import { LLMCommitteeService } from '../services/llm-committee.service';
 
 /**
  * 🥁🍄 VERIFIER AGENT (Grok-4 → Grok 4.1 Upgrade Path) - The Drummer & Living Root System
@@ -41,6 +42,7 @@ export class VerifierAgent {
   constructor(
     private llmService: LLMService,
     private truthMycelium: TruthMyceliumService,
+    @Optional() private committeeService: LLMCommitteeService | null,
   ) {}
 
   /**
@@ -131,8 +133,24 @@ export class VerifierAgent {
         `discrepancy: ${verifiedData.hasDiscrepancy}, ` +
         `facts: ${verifiedData.verified_facts.length}, ` +
         `cost: $${verifiedData.cost?.toFixed(4) || '0.0000'}, ` +
-        `latency: ${verifiedData.latency}ms`,
+        `latency: ${verifiedData.latency}ms, ` +
+        `model: ${verifiedData.model}`,
       );
+
+      // 🎸 RECORD CONTRIBUTION: Track Grok verification in LLM Committee
+      if (this.committeeService) {
+        await this.committeeService.recordContribution({
+          session_id: messages[0]?.conversation_id || 'unknown',
+          model_name: verifiedData.model || 'grok-4',
+          agent_name: 'verifier',
+          contributed: true,
+          offline: false,
+          tokens_used: verification.tokensUsed?.total || 0,
+          cost_usd: verifiedData.cost || 0,
+          latency_ms: verifiedData.latency || 0,
+        });
+        this.logger.log(`🎸 Committee: Grok-${verifiedData.model} contribution recorded`);
+      }
 
       // VETO LOGIC: Flag if confidence is too low
       if (verifiedData.confidence < 0.8) {
@@ -143,6 +161,19 @@ export class VerifierAgent {
       return verifiedData;
     } catch (error) {
       this.logger.error(`❌ Verifier failed: ${error.message}`);
+      
+      // Record failed contribution
+      if (this.committeeService && messages[0]) {
+        await this.committeeService.recordContribution({
+          session_id: messages[0].conversation_id || 'unknown',
+          model_name: 'grok-4',
+          agent_name: 'verifier',
+          contributed: false,
+          offline: true,
+          error_type: error.message,
+        });
+      }
+      
       return null;
     }
   }
@@ -274,9 +305,36 @@ ${finalResponse}
 
       this.logger.log(`✅ Post-synthesis check complete - confidence: ${verifiedData.confidence.toFixed(2)}`);
 
+      // 🎸 RECORD CONTRIBUTION: Track post-synthesis verification
+      if (this.committeeService && messages[0]) {
+        await this.committeeService.recordContribution({
+          session_id: messages[0].conversation_id || 'unknown',
+          model_name: verifiedData.model || 'grok-4',
+          agent_name: 'verifier-post',
+          contributed: true,
+          offline: false,
+          cost_usd: verifiedData.cost || 0,
+          latency_ms: verifiedData.latency || 0,
+        });
+        this.logger.log(`🎸 Committee: Post-synthesis Grok contribution recorded`);
+      }
+
       return verifiedData;
     } catch (error) {
       this.logger.error(`❌ Post-synthesis check failed: ${error.message}`);
+      
+      // Record failed post-synthesis contribution
+      if (this.committeeService && messages[0]) {
+        await this.committeeService.recordContribution({
+          session_id: messages[0].conversation_id || 'unknown',
+          model_name: 'grok-4',
+          agent_name: 'verifier-post',
+          contributed: false,
+          offline: true,
+          error_type: error.message,
+        });
+      }
+      
       return null;
     }
   }
