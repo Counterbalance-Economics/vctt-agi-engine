@@ -30,6 +30,7 @@ import { Conversation } from './entities/conversation.entity';
 import { Message } from './entities/message.entity';
 import { InternalState } from './entities/internal-state.entity';
 import { LLMContribution } from './entities/llm-contribution.entity';
+import { StreamingGateway } from './gateways/streaming.gateway';
 
 @Module({
   imports: [
@@ -82,6 +83,9 @@ import { LLMContribution } from './entities/llm-contribution.entity';
     // Guards (for @UseGuards decorator)
     RateLimitGuard,
     CostLimitGuard,
+    
+    // WebSocket Gateway
+    StreamingGateway,
   ],
   
   controllers: [

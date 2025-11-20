@@ -509,4 +509,255 @@ Start your response with { and end with }. NO OTHER TEXT.`;
   getRemainingDailyBudget(): number {
     return Math.max(0, LLMConfig.limits.dailyBudgetUSD - this.dailyCost);
   }
+
+  /**
+   * Generate a streaming completion (token-by-token)
+   * 
+   * @param messages - Conversation messages
+   * @param model - Model to use
+   * @param temperature - Optional temperature override
+   * @param agentRole - Optional agent role for model selection
+   * @param enableTools - Enable MCP tools for Claude agents
+   * @param onChunk - Callback for each token/chunk (chunk, tokensUsed, estimatedCost)
+   */
+  async generateCompletionStream(
+    messages: Message[],
+    model: string,
+    temperature?: number,
+    agentRole?: 'analyst' | 'relational' | 'ethics' | 'synthesiser',
+    enableTools = true,
+    onChunk?: (chunk: string, tokensUsed: number, estimatedCost: number) => void,
+  ): Promise<void> {
+    const startTime = Date.now();
+    
+    // Reset daily cost if needed
+    this.resetDailyCostIfNeeded();
+    
+    // Check daily budget
+    if (this.dailyCost >= LLMConfig.limits.dailyBudgetUSD) {
+      throw new Error(
+        `Daily LLM budget exceeded: $${this.dailyCost.toFixed(2)}/$${LLMConfig.limits.dailyBudgetUSD}`
+      );
+    }
+    
+    // Select model based on agent role
+    const selectedModel = model || (agentRole 
+      ? (LLMConfig.models as any)[agentRole] 
+      : LLMConfig.models.primary);
+    
+    // Get MCP tools if applicable
+    const tools = (enableTools && agentRole && (agentRole === 'analyst' || agentRole === 'synthesiser'))
+      ? (LLMConfig.mcpTools as any)[agentRole]
+      : undefined;
+    
+    this.logger.log(
+      `🌊 Starting stream: model=${selectedModel}, role=${agentRole || 'primary'}, tools=${tools ? tools.length : 0}`
+    );
+    
+    // Call streaming API
+    try {
+      await this.callLLMStream(
+        messages,
+        selectedModel,
+        temperature,
+        tools,
+        onChunk,
+      );
+    } catch (primaryError) {
+      this.logger.warn(
+        `Primary model (${selectedModel}) stream failed: ${primaryError.message}`
+      );
+      this.logger.log(`Falling back to ${LLMConfig.models.fallback} for streaming`);
+      
+      // Fallback to non-streaming model
+      try {
+        await this.callLLMStream(
+          messages,
+          LLMConfig.models.fallback,
+          temperature,
+          undefined,
+          onChunk,
+        );
+      } catch (fallbackError) {
+        this.logger.error(
+          `Both models failed for streaming. Primary: ${primaryError.message}, Fallback: ${fallbackError.message}`
+        );
+        throw new Error('LLM streaming service unavailable: All models failed');
+      }
+    }
+  }
+
+  /**
+   * Call LLM API with streaming enabled
+   */
+  private async callLLMStream(
+    messages: Message[],
+    model: string,
+    temperature?: number,
+    tools?: any[],
+    onChunk?: (chunk: string, tokensUsed: number, estimatedCost: number) => void,
+  ): Promise<void> {
+    try {
+      // Build request body
+      const requestBody: any = {
+        model,
+        messages,
+        temperature: temperature ?? LLMConfig.temperature,
+        max_tokens: LLMConfig.limits.maxTokensPerRequest,
+        frequency_penalty: LLMConfig.frequencyPenalty,
+        presence_penalty: LLMConfig.presencePenalty,
+        stream: true, // Enable streaming
+      };
+      
+      // Add tools if provided
+      if (tools && tools.length > 0) {
+        const validatedTools = tools.filter(tool => 
+          typeof tool === 'object' && tool.type === 'function' && tool.function
+        );
+        
+        if (validatedTools.length > 0) {
+          requestBody.tools = validatedTools;
+          requestBody.tool_choice = 'auto';
+          this.logger.log(`Adding ${validatedTools.length} MCP tools to stream request`);
+        }
+      }
+      
+      const response = await fetch(LLMConfig.baseUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.ABACUSAI_API_KEY}`,
+        },
+        body: JSON.stringify(requestBody),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`LLM API error (${response.status}): ${errorText}`);
+      }
+      
+      if (!response.body) {
+        throw new Error('Response body is null - streaming not supported');
+      }
+      
+      // Process stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      let fullText = '';
+      let inputTokens = 0;
+      let outputTokens = 0;
+      
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            break;
+          }
+          
+          // Decode chunk
+          buffer += decoder.decode(value, { stream: true });
+          
+          // Process SSE lines
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // Keep incomplete line in buffer
+          
+          for (const line of lines) {
+            const trimmed = line.trim();
+            
+            if (trimmed === '' || trimmed === 'data: [DONE]') {
+              continue;
+            }
+            
+            if (trimmed.startsWith('data: ')) {
+              try {
+                const jsonStr = trimmed.slice(6); // Remove 'data: ' prefix
+                const data = JSON.parse(jsonStr);
+                
+                // Extract content delta
+                const delta = data.choices?.[0]?.delta;
+                if (delta?.content) {
+                  const chunk = delta.content;
+                  fullText += chunk;
+                  outputTokens += Math.ceil(chunk.length / 4); // Rough estimation
+                  
+                  // Calculate estimated cost
+                  const modelCosts = (LLMConfig.costs as any)[model] || LLMConfig.costs['gpt-4o'];
+                  const estimatedCost = 
+                    (inputTokens / 1000) * modelCosts.inputPer1k +
+                    (outputTokens / 1000) * modelCosts.outputPer1k;
+                  
+                  // Call chunk callback
+                  if (onChunk) {
+                    onChunk(chunk, inputTokens + outputTokens, estimatedCost);
+                  }
+                }
+                
+                // Extract usage if available (usually in final chunk)
+                if (data.usage) {
+                  inputTokens = data.usage.prompt_tokens || inputTokens;
+                  outputTokens = data.usage.completion_tokens || outputTokens;
+                }
+                
+              } catch (parseError) {
+                this.logger.warn(`Failed to parse SSE chunk: ${parseError.message}`);
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      
+      // Final token estimation if not provided
+      if (inputTokens === 0) {
+        const promptLength = messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0);
+        inputTokens = Math.ceil(promptLength / 4);
+      }
+      
+      if (outputTokens === 0) {
+        outputTokens = Math.ceil(fullText.length / 4);
+      }
+      
+      const totalTokens = inputTokens + outputTokens;
+      
+      // Calculate final cost
+      const modelCosts = (LLMConfig.costs as any)[model] || LLMConfig.costs['gpt-4o'];
+      const cost = 
+        (inputTokens / 1000) * modelCosts.inputPer1k +
+        (outputTokens / 1000) * modelCosts.outputPer1k;
+      
+      // Track usage
+      this.trackUsage({
+        content: fullText,
+        model,
+        tokensUsed: {
+          input: inputTokens,
+          output: outputTokens,
+          total: totalTokens,
+        },
+        cost,
+        latencyMs: 0,
+      });
+      
+      this.logger.log(
+        `Stream completed: model=${model}, tokens=${totalTokens}, cost=$${cost.toFixed(4)}`
+      );
+      
+    } catch (error) {
+      this.logger.error(`Stream call failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Helper method to select model for agent role
+   */
+  private selectModelForAgent(agentRole?: string): string {
+    if (!agentRole) {
+      return LLMConfig.models.primary;
+    }
+    return (LLMConfig.models as any)[agentRole] || LLMConfig.models.primary;
+  }
 }
