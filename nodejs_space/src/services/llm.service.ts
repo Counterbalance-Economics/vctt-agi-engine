@@ -321,7 +321,7 @@ Start your response with { and end with }. NO OTHER TEXT.`;
       // FIX #3: Fallback estimation if tokens are undefined
       if (totalTokens === 0 && content) {
         // Estimate: avg 4 chars per token for input, actual length for output
-        const promptLength = prompt.length;
+        const promptLength = messages.map(m => m.content).join('').length;
         inputTokens = Math.ceil(promptLength / 4);
         outputTokens = Math.ceil(content.length / 4);
         totalTokens = inputTokens + outputTokens;
