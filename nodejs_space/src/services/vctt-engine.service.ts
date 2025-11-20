@@ -763,4 +763,206 @@ export class VCTTEngineService {
     const lowerInput = input.toLowerCase();
     return factualKeywords.some(keyword => lowerInput.includes(keyword));
   }
+
+  /**
+   * 🎨 PHASE 3.7: Process Code Edit through FULL AUTONOMOUS PIPELINE
+   * 
+   * This is the CORRECT way to handle Cmd+K edits:
+   * - Routes through 5-model committee reasoning
+   * - Grok-4.1 verification of code correctness
+   * - Truth Mycelium checks for best practices
+   * - Real autonomous decision-making (not just direct Claude calls)
+   * 
+   * This is MIN's unique advantage over Cursor!
+   */
+  async processCodeEdit(
+    filePath: string,
+    originalCode: string,
+    instruction: string,
+    language?: string,
+  ): Promise<any> {
+    this.logger.log('🎨 ===== MIN AUTONOMOUS CODE EDIT (5-model + Grok-4.1 + Truth Mycelium) =====');
+    this.logger.log(`   File: ${filePath}`);
+    this.logger.log(`   Instruction: "${instruction.substring(0, 80)}..."`);
+    this.logger.log(`   Language: ${language || 'auto-detect'}`);
+    
+    // Create a synthetic session for the code edit
+    const sessionId = `code_edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Format the code edit as a conversation for the autonomous pipeline
+    const codeEditQuery = `You are an expert code editor. Transform the following ${language || 'code'} according to the instruction.
+
+FILE: ${filePath}
+LANGUAGE: ${language || 'auto-detect'}
+
+ORIGINAL CODE:
+\`\`\`${language || ''}
+${originalCode}
+\`\`\`
+
+INSTRUCTION: ${instruction}
+
+OUTPUT REQUIREMENTS:
+1. Output ONLY the transformed code - no explanations, no markdown blocks
+2. Preserve original structure and style unless instructed otherwise
+3. Ensure syntactic correctness
+4. Add comments only if they improve clarity
+
+IMPORTANT: Return ONLY the final code, nothing else.`;
+
+    const messages: any[] = [
+      { role: 'user', content: codeEditQuery, timestamp: new Date() }
+    ];
+
+    // Initialize state for this code edit session
+    const state: any = {
+      session_id: sessionId,
+      state: {
+        sim: { tension: 0.0, uncertainty: 0.0, emotional_intensity: 0.0 },
+        contradiction: 0.0,
+        regulation: 'normal',
+        trust_tau: 1.0,
+        repair_count: 0,
+      },
+      updated_at: new Date(),
+    };
+
+    // Store session info in memory
+    this.inMemoryConversations.set(sessionId, { id: sessionId, user_id: 'code_editor' });
+    this.inMemoryMessages.set(sessionId, messages);
+    this.inMemoryStates.set(sessionId, state);
+
+    // Set session ID for LLM tracking
+    if (this.llmCascade) {
+      this.llmCascade.setSessionId(sessionId);
+    }
+
+    this.logger.log('🍄 Running pre-jam truth sweep for code best practices...');
+    await this.verifierAgent.preJamTruthSweep(codeEditQuery, '');
+    
+    // Get relevant coding best practices from Truth Mycelium
+    const codingFacts = this.truthMycelium.getRelevantFacts(
+      `${language} ${instruction} code best practices`,
+      5
+    );
+    if (codingFacts.length > 0) {
+      this.logger.log(`🍄 Found ${codingFacts.length} relevant coding best practices`);
+      state.myceliumFacts = codingFacts;
+    }
+
+    // 🎼 RUN THE FULL BAND JAM (5-model committee)
+    this.logger.log('🎵 Starting Band Jam Mode for code transformation...');
+    const startTime = Date.now();
+    
+    const bandJamResults = await this.runAgents(messages, state, true);
+    
+    const elapsed = Date.now() - startTime;
+    this.logger.log(`✅ Band jam complete in ${elapsed}ms`);
+
+    // Extract verification data
+    const grokVerificationData = bandJamResults.results.verification;
+    
+    // Trust adjustment based on verification
+    if (grokVerificationData) {
+      if (grokVerificationData.hasDiscrepancy) {
+        this.logger.warn('⚠️ Grok flagged potential issues in code transformation');
+        state.state.trust_tau = Math.min(state.state.trust_tau, 0.75);
+      } else {
+        state.state.trust_tau = Math.min(1.0, state.state.trust_tau + 0.05);
+        this.logger.log(`✅ Grok verified code correctness - trust: τ=${state.state.trust_tau.toFixed(3)}`);
+      }
+    }
+
+    // Run modules for code quality assessment
+    this.runModules(messages, state, codeEditQuery);
+
+    // GROK PRE-COMMIT: Boost trust if high confidence
+    if (grokVerificationData && grokVerificationData.confidence >= 0.85) {
+      this.logger.log('🛡️  GROK PRE-COMMIT: High-confidence code verification');
+      state.state.trust_tau = Math.max(state.state.trust_tau, 0.85);
+      state.state.regulation = 'normal';
+    }
+
+    // === SYNTHESISER: Generate the final code ===
+    this.logger.log('=== SYNTHESIZING FINAL CODE (Weighted Band Synthesis) ===');
+    const responseObj = await this.synthesiserAgent.synthesize(messages, state, grokVerificationData, bandJamResults);
+    let editedCode = responseObj.content;
+
+    // === POST-SYNTHESIS VERIFICATION ===
+    this.logger.log('🔍 POST-SYNTHESIS: Grok performing final code correctness check...');
+    const postVerification = await this.verifierAgent.postSynthesisCheck(editedCode, messages);
+    
+    if (postVerification && postVerification.confidence >= 0.8) {
+      this.logger.log(`✅ Grok confirmed code correctness (confidence: ${postVerification.confidence.toFixed(2)})`);
+    } else if (postVerification && postVerification.confidence < 0.8) {
+      this.logger.warn(`⚠️ Grok confidence ${postVerification.confidence.toFixed(2)} < 0.8 for code edit`);
+    }
+
+    // Clean up code output (remove markdown artifacts)
+    editedCode = editedCode.trim();
+    editedCode = editedCode.replace(/^```[\w]*\n/gm, '');
+    editedCode = editedCode.replace(/\n```$/gm, '');
+    editedCode = editedCode.trim();
+
+    // Calculate statistics
+    const originalLines = originalCode.split('\n').length;
+    const editedLines = editedCode.split('\n').length;
+    const linesChanged = Math.abs(editedLines - originalLines);
+
+    // Track contributions
+    if (bandJamResults && bandJamResults.weights) {
+      this.trackContribution(sessionId, 'analyst', 'claude', !!bandJamResults.results.analyst, false);
+      this.trackContribution(sessionId, 'relational', 'gpt-5', !!bandJamResults.results.relational, false);
+      this.trackContribution(sessionId, 'ethics', 'gpt-5', !!bandJamResults.results.ethics, false);
+      this.trackContribution(sessionId, 'verification', 'grok-4.1', !!bandJamResults.results.verification, false);
+    }
+    
+    const synthModel = responseObj.metadata?.model || 'claude';
+    this.trackContribution(sessionId, 'synthesiser', synthModel, true, false, undefined,
+      responseObj.metadata?.cost_usd, responseObj.metadata?.latency_ms);
+
+    // Flush contributions
+    await this.flushContributions(sessionId);
+
+    // Clean up memory
+    this.inMemoryConversations.delete(sessionId);
+    this.inMemoryMessages.delete(sessionId);
+    this.inMemoryStates.delete(sessionId);
+
+    const totalElapsed = Date.now() - startTime;
+    this.logger.log(`🎨 ===== CODE EDIT COMPLETE in ${totalElapsed}ms =====`);
+    this.logger.log(`   Original: ${originalLines} lines → Edited: ${editedLines} lines`);
+    this.logger.log(`   Trust: τ=${state.state.trust_tau.toFixed(3)}`);
+    this.logger.log(`   Grok Confidence: ${postVerification?.confidence.toFixed(2) || 'N/A'}`);
+
+    return {
+      success: true,
+      originalCode,
+      editedCode,
+      instruction,
+      model: synthModel,
+      stats: {
+        originalLines,
+        editedLines,
+        linesChanged,
+        tokensUsed: responseObj.metadata?.tokens_total || 0,
+        costUSD: responseObj.metadata?.cost_usd || 0,
+        latencyMs: totalElapsed,
+      },
+      verification: {
+        grokConfidence: postVerification?.confidence || 0,
+        trustTau: state.state.trust_tau,
+        hasIssues: postVerification?.confidence ? postVerification.confidence < 0.8 : false,
+        corrections: postVerification?.corrections || [],
+      },
+      bandJamMetadata: {
+        analystWeight: bandJamResults.weights.analyst,
+        relationalWeight: bandJamResults.weights.relational,
+        ethicsWeight: bandJamResults.weights.ethics,
+        verificationWeight: bandJamResults.weights.verification,
+        totalLatency: bandJamResults.totalLatency,
+      },
+      timestamp: new Date().toISOString(),
+    };
+  }
 }

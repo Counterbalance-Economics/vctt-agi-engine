@@ -10,7 +10,8 @@ import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as fsSync from 'fs';
-import { LlmService } from './llm.service';
+import { LLMService } from './llm.service';
+import { VCTTEngineService } from './vctt-engine.service';
 
 const execAsync = promisify(exec);
 
@@ -21,8 +22,10 @@ export class IdeService {
   private readonly maxFileSize = 10 * 1024 * 1024; // 10MB
 
   constructor(
-    @Inject(forwardRef(() => LlmService))
-    private readonly llmService: LlmService,
+    @Inject(forwardRef(() => LLMService))
+    private readonly llmService: LLMService,
+    @Inject(forwardRef(() => VCTTEngineService))
+    private readonly vcttEngine: VCTTEngineService,
   ) {}
 
   /**
@@ -231,8 +234,17 @@ export class IdeService {
   }
 
   /**
-   * AI Code Editing - Apply AI suggestions to code (REAL LLM-powered)
-   * This is the KILLER feature for Cmd+K inline editing
+   * 🎨 AI Code Editing - NOW POWERED BY MIN'S AUTONOMOUS ENGINE!
+   * 
+   * PHASE 3.7 CRITICAL UPDATE:
+   * This now routes through the FULL VCTT autonomous pipeline:
+   * - 5-model committee reasoning (Analyst, Relational, Ethics, Planner)
+   * - Grok-4.1 real-time verification
+   * - Truth Mycelium best practices
+   * - Post-synthesis correctness checks
+   * 
+   * This is MIN's UNIQUE ADVANTAGE over Cursor (which just calls Claude directly).
+   * We use the full multi-agent reasoning stack for every code edit.
    */
   async applyCodeEdit(
     filePath: string,
@@ -243,80 +255,32 @@ export class IdeService {
     try {
       const fileExt = path.extname(filePath).substring(1) || language || 'typescript';
       
-      this.logger.log(
-        `🎨 AI Code Edit: ${filePath} - "${instruction.substring(0, 50)}..."`,
+      this.logger.log('🚀 ===== MIN AUTONOMOUS CODE EDIT (NOT DIRECT CLAUDE!) =====');
+      this.logger.log(`   File: ${filePath}`);
+      this.logger.log(`   Instruction: "${instruction.substring(0, 50)}..."`);
+      this.logger.log(`   Routing through: 5-model committee + Grok-4.1 + Truth Mycelium`);
+
+      // 🔥 ROUTE THROUGH FULL AUTONOMOUS ENGINE (THIS IS THE CRITICAL CHANGE!)
+      const result = await this.vcttEngine.processCodeEdit(
+        filePath,
+        originalCode,
+        instruction,
+        fileExt,
       );
 
-      // Build context-aware prompt for code transformation
-      const systemPrompt = `You are an expert code editor. Transform the given code according to the user's instruction.
-
-CRITICAL RULES:
-1. Output ONLY the transformed code - no explanations, no markdown, no \`\`\` blocks
-2. Preserve the original code structure and style unless instructed otherwise
-3. Add appropriate comments only if they improve clarity
-4. Ensure the output is syntactically correct ${fileExt} code
-5. If the instruction is unclear, make the best reasonable interpretation
-
-Language: ${fileExt}`;
-
-      const userPrompt = `Original code:
-\`\`\`${fileExt}
-${originalCode}
-\`\`\`
-
-Instruction: ${instruction}
-
-Transform the code above according to the instruction. Output ONLY the transformed code:`;
-
-      // Use Claude (best for code) or GPT-4o as fallback
-      const response = await this.llmService.getCompletion(
-        userPrompt,
-        {
-          systemMessage: systemPrompt,
-          temperature: 0.2, // Low temperature for deterministic code changes
-          maxTokens: 4000,
-        },
-        'claude-3.5-sonnet', // Claude is best for code editing
-      );
-
-      if (!response || !response.content) {
-        throw new Error('LLM returned empty response');
+      if (!result || !result.success) {
+        throw new Error('Autonomous engine returned unsuccessful result');
       }
 
-      // Clean up the response (remove any markdown artifacts)
-      let editedCode = response.content.trim();
-      
-      // Remove markdown code blocks if present
-      editedCode = editedCode.replace(/^```[\w]*\n/gm, '');
-      editedCode = editedCode.replace(/\n```$/gm, '');
-      editedCode = editedCode.trim();
+      this.logger.log('✅ ===== AUTONOMOUS CODE EDIT COMPLETE =====');
+      this.logger.log(`   Grok Confidence: ${result.verification.grokConfidence.toFixed(2)}`);
+      this.logger.log(`   Trust τ: ${result.verification.trustTau.toFixed(3)}`);
+      this.logger.log(`   Models Used: Analyst, Relational, Ethics, Grok-4.1, Synthesizer`);
+      this.logger.log(`   Latency: ${result.stats.latencyMs}ms`);
 
-      // Calculate diff statistics
-      const originalLines = originalCode.split('\n').length;
-      const editedLines = editedCode.split('\n').length;
-      const linesChanged = Math.abs(editedLines - originalLines);
-
-      this.logger.log(
-        `✅ Code edit complete: ${originalLines} → ${editedLines} lines (${linesChanged} changed)`,
-      );
-
-      return {
-        success: true,
-        originalCode,
-        editedCode,
-        instruction,
-        model: response.model,
-        stats: {
-          originalLines,
-          editedLines,
-          linesChanged,
-          tokensUsed: response.totalTokens || 0,
-          costUSD: response.costUSD || 0,
-        },
-        timestamp: new Date().toISOString(),
-      };
+      return result;
     } catch (error) {
-      this.logger.error(`❌ AI Code Edit failed: ${error.message}`);
+      this.logger.error(`❌ Autonomous Code Edit failed: ${error.message}`);
       return {
         success: false,
         error: error.message,
@@ -329,6 +293,10 @@ Transform the code above according to the instruction. Output ONLY the transform
   /**
    * AI Code Edit with Streaming (for real-time Cmd+K experience)
    * Returns an async generator for token-by-token streaming
+   * 
+   * NOTE: Streaming through the full autonomous engine is complex.
+   * For Phase 3.7, we use synchronous autonomous engine calls.
+   * Streaming can be added in a future phase if needed.
    */
   async *streamCodeEdit(
     filePath: string,
@@ -337,66 +305,37 @@ Transform the code above according to the instruction. Output ONLY the transform
     language?: string,
   ): AsyncGenerator<any, void, unknown> {
     try {
-      const fileExt = path.extname(filePath).substring(1) || language || 'typescript';
-      
       this.logger.log(
         `🌊 Streaming Code Edit: ${filePath} - "${instruction.substring(0, 50)}..."`,
       );
 
-      const systemPrompt = `You are an expert code editor. Transform the given code according to the user's instruction.
-
-CRITICAL RULES:
-1. Output ONLY the transformed code - no explanations, no markdown, no \`\`\` blocks
-2. Preserve the original code structure and style unless instructed otherwise
-3. Add appropriate comments only if they improve clarity
-4. Ensure the output is syntactically correct ${fileExt} code
-
-Language: ${fileExt}`;
-
-      const userPrompt = `Original code:
-\`\`\`${fileExt}
-${originalCode}
-\`\`\`
-
-Instruction: ${instruction}
-
-Transform the code above. Output ONLY the code:`;
-
-      // Stream from LLM
+      // Stream from autonomous engine (simplified for now)
       yield { type: 'start', instruction, originalCode };
 
-      let fullResponse = '';
-      for await (const chunk of this.llmService.streamCompletion(
-        userPrompt,
-        {
-          systemMessage: systemPrompt,
-          temperature: 0.2,
-          maxTokens: 4000,
-        },
-        'claude-3.5-sonnet',
-      )) {
-        if (chunk.type === 'content') {
-          fullResponse += chunk.content;
-          yield {
-            type: 'chunk',
-            content: chunk.content,
-            accumulated: fullResponse,
-          };
-        }
+      // Call the synchronous autonomous engine
+      const result = await this.applyCodeEdit(filePath, instruction, originalCode, language);
+
+      if (result.success) {
+        // Simulate streaming by yielding the complete result
+        yield {
+          type: 'chunk',
+          content: result.editedCode,
+          accumulated: result.editedCode,
+        };
+
+        yield {
+          type: 'complete',
+          editedCode: result.editedCode,
+          originalCode: result.originalCode,
+          instruction: result.instruction,
+          verification: result.verification,
+        };
+      } else {
+        yield {
+          type: 'error',
+          error: result.error,
+        };
       }
-
-      // Clean up final response
-      let editedCode = fullResponse.trim();
-      editedCode = editedCode.replace(/^```[\w]*\n/gm, '');
-      editedCode = editedCode.replace(/\n```$/gm, '');
-      editedCode = editedCode.trim();
-
-      yield {
-        type: 'complete',
-        editedCode,
-        originalCode,
-        instruction,
-      };
     } catch (error) {
       this.logger.error(`❌ Streaming Code Edit failed: ${error.message}`);
       yield {

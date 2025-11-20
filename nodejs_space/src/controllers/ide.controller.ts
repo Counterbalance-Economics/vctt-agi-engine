@@ -88,8 +88,8 @@ export class IdeController {
 
   @Post('code-edit')
   @ApiOperation({
-    summary: '🎨 AI Code Editing (Cmd+K killer feature)',
-    description: 'Transform code using AI based on natural language instructions. Powers the inline edit experience. Uses Claude 3.5 Sonnet for best code quality.',
+    summary: '🎨 AI Code Editing - MIN Autonomous Engine (Cmd+K)',
+    description: 'Transform code using MIN\'s full autonomous pipeline: 5-model committee reasoning + Grok-4.1 verification + Truth Mycelium. This is NOT a direct Claude call like Cursor - this routes through our entire multi-agent reasoning stack for verified, high-quality code transformations.',
   })
   @ApiBody({
     type: CodeEditDto,
