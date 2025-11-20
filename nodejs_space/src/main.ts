@@ -9,27 +9,27 @@ async function bootstrap() {
     logger: ['log', 'error', 'warn', 'debug', 'verbose'],
   });
 
-  // Enable CORS - Allow Vercel frontend and localhost
-  const allowedOrigins = [
-    'https://vcttagi-kernar1t3-peters-projects-3a28ae0e.vercel.app',
-    'https://vctt-agi-ui.vercel.app',
-    'http://localhost:3000',
-    'http://localhost:5173',
-    '*', // Fallback for development
-  ];
-
+  // Enable CORS - Allow ALL Vercel deployments and localhost
   app.enableCors({
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
       // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) return callback(null, true);
       
-      // Check if origin is allowed
-      if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      // Allow all Vercel apps (*.vercel.app)
+      if (origin.includes('.vercel.app')) {
         callback(null, true);
-      } else {
-        callback(null, true); // Be permissive for now, log warning
-        console.warn(`⚠️  CORS: Request from non-whitelisted origin: ${origin}`);
+        return;
       }
+      
+      // Allow localhost for development
+      if (origin.includes('localhost')) {
+        callback(null, true);
+        return;
+      }
+      
+      // Allow all origins for now (production-ready CORS can be tightened later)
+      callback(null, true);
+      console.log(`✅ CORS: Allowed request from: ${origin}`);
     },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
