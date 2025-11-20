@@ -243,6 +243,11 @@ export class IdeService {
    * - Truth Mycelium best practices
    * - Post-synthesis correctness checks
    * 
+   * PHASE 4.5 JAZZ TEAM GUARDRAIL:
+   * - Auto-retry if trust score τ < 0.75
+   * - Up to 3 retries with exponential backoff
+   * - Ensures high-quality autonomous code generation
+   * 
    * This is MIN's UNIQUE ADVANTAGE over Cursor (which just calls Claude directly).
    * We use the full multi-agent reasoning stack for every code edit.
    */
@@ -252,6 +257,9 @@ export class IdeService {
     originalCode: string,
     language?: string,
   ): Promise<any> {
+    const MAX_RETRIES = 3;
+    const MIN_TRUST_THRESHOLD = 0.75;
+    
     try {
       const fileExt = path.extname(filePath).substring(1) || language || 'typescript';
       
@@ -259,22 +267,55 @@ export class IdeService {
       this.logger.log(`   File: ${filePath}`);
       this.logger.log(`   Instruction: "${instruction.substring(0, 50)}..."`);
       this.logger.log(`   Routing through: 5-model committee + Grok-4.1 + Truth Mycelium`);
+      this.logger.log(`   Jazz Guardrail: Auto-retry if τ < ${MIN_TRUST_THRESHOLD}`);
 
-      // 🔥 ROUTE THROUGH FULL AUTONOMOUS ENGINE (THIS IS THE CRITICAL CHANGE!)
-      const result = await this.vcttEngine.processCodeEdit(
-        filePath,
-        originalCode,
-        instruction,
-        fileExt,
-      );
+      let result: any;
+      let attempt = 0;
+      
+      // 🔥 JAZZ TEAM GUARDRAIL: Auto-retry loop
+      while (attempt < MAX_RETRIES) {
+        attempt++;
+        
+        if (attempt > 1) {
+          this.logger.warn(`🔄 Retry attempt ${attempt}/${MAX_RETRIES} (previous τ < ${MIN_TRUST_THRESHOLD})`);
+          // Exponential backoff: 1s, 2s, 4s
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt - 2) * 1000));
+        }
 
-      if (!result || !result.success) {
-        throw new Error('Autonomous engine returned unsuccessful result');
+        // Call autonomous engine
+        result = await this.vcttEngine.processCodeEdit(
+          filePath,
+          originalCode,
+          instruction,
+          fileExt,
+        );
+
+        if (!result || !result.success) {
+          throw new Error('Autonomous engine returned unsuccessful result');
+        }
+
+        const trustScore = result.verification.trustTau;
+        
+        this.logger.log(`📊 Attempt ${attempt} Results:`);
+        this.logger.log(`   Grok Confidence: ${result.verification.grokConfidence.toFixed(2)}`);
+        this.logger.log(`   Trust τ: ${trustScore.toFixed(3)}`);
+        
+        // Check if trust score meets threshold
+        if (trustScore >= MIN_TRUST_THRESHOLD) {
+          this.logger.log(`✅ Trust threshold met (τ=${trustScore.toFixed(3)} >= ${MIN_TRUST_THRESHOLD})`);
+          break;
+        } else {
+          this.logger.warn(`⚠️  Trust score below threshold (τ=${trustScore.toFixed(3)} < ${MIN_TRUST_THRESHOLD})`);
+          
+          if (attempt === MAX_RETRIES) {
+            this.logger.error(`❌ Max retries reached. Proceeding with τ=${trustScore.toFixed(3)}`);
+          }
+        }
       }
 
       this.logger.log('✅ ===== AUTONOMOUS CODE EDIT COMPLETE =====');
-      this.logger.log(`   Grok Confidence: ${result.verification.grokConfidence.toFixed(2)}`);
-      this.logger.log(`   Trust τ: ${result.verification.trustTau.toFixed(3)}`);
+      this.logger.log(`   Final Trust τ: ${result.verification.trustTau.toFixed(3)}`);
+      this.logger.log(`   Attempts: ${attempt}/${MAX_RETRIES}`);
       this.logger.log(`   Models Used: Analyst, Relational, Ethics, Grok-4.1, Synthesizer`);
       this.logger.log(`   Latency: ${result.stats.latencyMs}ms`);
 
