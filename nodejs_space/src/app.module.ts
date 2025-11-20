@@ -2,6 +2,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { APP_FILTER } from '@nestjs/core';
 import { VCTTEngineService } from './services/vctt-engine.service';
 import { AnalyticsService } from './services/analytics.service';
 import { LLMService } from './services/llm.service';
@@ -32,6 +33,7 @@ import { Message } from './entities/message.entity';
 import { InternalState } from './entities/internal-state.entity';
 import { LLMContribution } from './entities/llm-contribution.entity';
 import { StreamingGateway } from './gateways/streaming.gateway';
+import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 
 @Module({
   imports: [
@@ -58,6 +60,12 @@ import { StreamingGateway } from './gateways/streaming.gateway';
   ],
   
   providers: [
+    // Global Exception Filter - Catches all errors and prevents 502s
+    {
+      provide: APP_FILTER,
+      useClass: AllExceptionsFilter,
+    },
+    
     // Core services
     VCTTEngineService,
     AnalyticsService,
