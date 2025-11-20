@@ -29,7 +29,12 @@ export const LLMConfig = {
     // Legacy/fallback models
     primary: 'gpt-4o',                          // Default for non-agent use
     fallback: 'gpt-4o-mini',                    // Fallback to GPT-4o-mini (faster/cheaper)
-    verification: 'grok-4.1',                   // Grok 4.1 (Nov 18, 2025) - truth anchor with 65% less hallucinations
+    
+    // 🥁 GROK VERIFIER - Truth Anchor & Drummer
+    // Current: 'grok-4' (stable, full access, same $0.002/0.010 pricing)
+    // Upgrade to: 'grok-4-1-fast-reasoning' when SuperGrok subscription is active
+    // Requires: Team ID 093b77a2-de7b-4d4d-aff8-8da0c4852ccb must have Grok 4.1 entitlement
+    verification: 'grok-4',                     // Grok 4 (stable baseline, full API access)
   },
   
   // MCP Tool Configuration (ENABLED - schemas fixed per Claude requirements)
@@ -94,12 +99,25 @@ export const LLMConfig = {
       inputPer1k: 0.005,         // $5.00 per 1M input tokens (legacy, deprecated)
       outputPer1k: 0.015,        // $15.00 per 1M output tokens
     },
+    // GROK 4 FAMILY (Nov 2025) - Cheapest frontier models
+    'grok-4': {
+      inputPer1k: 0.002,         // $2.00 per 1M input tokens ($0.20/MTok) - CURRENT STABLE
+      outputPer1k: 0.010,        // $10.00 per 1M output tokens ($0.50/MTok)
+    },
     'grok-4.1': {
-      inputPer1k: 0.002,         // $2.00 per 1M input tokens (Nov 2025 pricing - 60% cheaper!)
-      outputPer1k: 0.010,        // $10.00 per 1M output tokens (33% cheaper!)
+      inputPer1k: 0.002,         // $2.00 per 1M input tokens (Grok 4.1 - requires SuperGrok)
+      outputPer1k: 0.010,        // $10.00 per 1M output tokens
+    },
+    'grok-4-1-fast-reasoning': {
+      inputPer1k: 0.002,         // $2.00 per 1M input tokens (Grok 4.1 proper API name)
+      outputPer1k: 0.010,        // $10.00 per 1M output tokens
+    },
+    'grok-4-1-fast-non-reasoning': {
+      inputPer1k: 0.002,         // $2.00 per 1M input tokens (Grok 4.1 non-reasoning mode)
+      outputPer1k: 0.010,        // $10.00 per 1M output tokens
     },
     'grok-4-0709': {
-      inputPer1k: 0.002,         // $2.00 per 1M input tokens (Grok-4 base model)
+      inputPer1k: 0.002,         // $2.00 per 1M input tokens (legacy alias)
       outputPer1k: 0.010,        // $10.00 per 1M output tokens
     },
     // Default for auto-routed models (RouteLLM will pick optimal Claude)

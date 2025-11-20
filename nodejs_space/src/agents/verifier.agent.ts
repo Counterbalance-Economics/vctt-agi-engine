@@ -6,7 +6,7 @@ import { LLMService } from '../services/llm.service';
 import { TruthMyceliumService, VerifiedFact } from '../services/truth-mycelium.service';
 
 /**
- * 🥁🍄 VERIFIER AGENT (Grok-4-Fast-Reasoning) - The Drummer & Living Root System
+ * 🥁🍄 VERIFIER AGENT (Grok-4 → Grok 4.1 Upgrade Path) - The Drummer & Living Root System
  * 
  * DUAL ROLE:
  * 1. Drummer: Real-time fact-checking during Band Jam Mode
@@ -14,6 +14,9 @@ import { TruthMyceliumService, VerifiedFact } from '../services/truth-mycelium.s
  * 
  * Weight: 20% base, 30% for factual queries
  * Veto: Triggers re-jam if confidence < 0.8
+ * 
+ * Current Model: Grok-4 (stable, full API access)
+ * Upgrade Path: grok-4-1-fast-reasoning (when SuperGrok subscription active)
  * 
  * Every verified fact is stored in the mycelium, creating a living, growing
  * substrate of truth that all future conversations can build upon.
@@ -83,10 +86,10 @@ export class VerifierAgent {
           corrections: parsed.corrections || [],
           latency: Date.now() - startTime,
           cost: verification.cost,
-          model: 'grok-4-0709',
+          model: verification.model || 'grok', // Use actual model from API response
         };
 
-        this.logger.log(`✅ Verifier JSON parsed successfully`);
+        this.logger.log(`✅ Verifier JSON parsed successfully (model: ${verification.model})`);
       } catch (parseError) {
         // GROK SAFETY NET: If parsing fails, use raw Grok content anyway
         this.logger.warn(`⚠️  Verifier JSON parsing failed: ${parseError.message}`);
@@ -100,7 +103,7 @@ export class VerifierAgent {
           corrections: [],
           latency: Date.now() - startTime,
           cost: verification.cost,
-          model: 'grok-4-0709',
+          model: verification.model || 'grok', // Use actual model from API response
         };
       }
 
@@ -111,7 +114,7 @@ export class VerifierAgent {
           fact,
           confidence: verifiedData.confidence,
           sources: verifiedData.sources,
-          verifiedBy: 'grok-4-0709',
+          verifiedBy: verifiedData.model || 'grok', // Use actual model name with fallback
           timestamp: new Date(),
         }));
 
@@ -237,7 +240,7 @@ ${finalResponse}
           ...parsed,
           latency: Date.now() - startTime,
           cost: verification.cost,
-          model: 'grok-4-0709',
+          model: verification.model || 'grok',
         };
       } catch (parseError) {
         verifiedData = {
@@ -247,7 +250,7 @@ ${finalResponse}
           sources: ['Grok post-synthesis check'],
           latency: Date.now() - startTime,
           cost: verification.cost,
-          model: 'grok-4-0709',
+          model: verification.model || 'grok',
         };
       }
 
@@ -258,7 +261,7 @@ ${finalResponse}
           fact,
           confidence: verifiedData.confidence,
           sources: verifiedData.sources,
-          verifiedBy: 'grok-4-0709',
+          verifiedBy: verifiedData.model || 'grok', // Use actual model name with fallback
           timestamp: new Date(),
         }));
 
@@ -334,7 +337,7 @@ Only include facts you can verify with high confidence (>0.7).`;
           fact: v.fact,
           confidence: v.confidence || 0.8,
           sources: v.sources || ['Grok pre-jam sweep'],
-          verifiedBy: 'grok-4-0709',
+          verifiedBy: verification.model || 'grok', // Use actual model name
           timestamp: new Date(),
         }));
       } catch (parseError) {
