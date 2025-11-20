@@ -330,8 +330,9 @@ Start your response with { and end with }. NO OTHER TEXT.`;
         );
       }
       
-      // Calculate cost (using grok-beta pricing)
-      const modelCosts = LLMConfig.costs['grok-2-1212'];
+      // Calculate cost (using grok-4-1-fast-reasoning pricing)
+      const modelName = LLMConfig.models.verification;
+      const modelCosts = (LLMConfig.costs as any)[modelName] || LLMConfig.costs['grok-4-1-fast-reasoning'];
       const cost = 
         (inputTokens / 1000) * modelCosts.inputPer1k +
         (outputTokens / 1000) * modelCosts.outputPer1k;

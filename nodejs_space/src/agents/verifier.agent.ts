@@ -7,7 +7,7 @@ import { TruthMyceliumService, VerifiedFact } from '../services/truth-mycelium.s
 import { LLMCommitteeService } from '../services/llm-committee.service';
 
 /**
- * 🥁🍄 VERIFIER AGENT (Grok-4 → Grok 4.1 Upgrade Path) - The Drummer & Living Root System
+ * 🥁🍄 VERIFIER AGENT (Grok 4.1 Fast Reasoning) - The Drummer & Living Root System
  * 
  * DUAL ROLE:
  * 1. Drummer: Real-time fact-checking during Band Jam Mode
@@ -16,8 +16,11 @@ import { LLMCommitteeService } from '../services/llm-committee.service';
  * Weight: 20% base, 30% for factual queries
  * Veto: Triggers re-jam if confidence < 0.8
  * 
- * Current Model: Grok-4 (stable, full API access)
- * Upgrade Path: grok-4-1-fast-reasoning (when SuperGrok subscription active)
+ * Current Model: grok-4-1-fast-reasoning (Nov 2025)
+ *   - 2M token context window (vs 128k in Grok 2)
+ *   - 90% cheaper ($0.20/M input vs $2.00/M)
+ *   - State-of-the-art reasoning and tool calling
+ *   - Optimized for high-performance agentic tasks
  * 
  * Every verified fact is stored in the mycelium, creating a living, growing
  * substrate of truth that all future conversations can build upon.

@@ -175,35 +175,40 @@ Provide:
 `.trim();
 
     try {
-      // Use simplified LLM call for speed (jazz team operates in "fast analysis" mode)
-      // This is intentionally lightweight - full Band Jam would take 2+ minutes
-      const systemPrompt = `You are the VCTT-AGI jazz team's Analyst agent in self-improvement mode.
-Analyze build artifacts quickly and provide structured scores.
+      // Use Grok 4.1 Fast Reasoning for deep Jazz analysis
+      // This is the CRITICAL UPGRADE - Grok 4.1 excels at counterfactual reasoning
+      const systemPrompt = `You are the VCTT-AGI jazz team using Grok 4.1 Fast Reasoning for self-improvement.
+Perform deep counterfactual analysis of build artifacts with advanced reasoning capabilities.
 
-Output format (JSON):
+Your task: Analyze the code transformation and measure Voice/Choice/Transparency/Trust (VCTT).
+
+Output format (STRICT JSON):
 {
   "voice": 0.85,
   "choice": 0.80,
   "transparency": 0.90,
   "trust": 0.87,
   "suggestions": [
-    "Suggestion 1",
-    "Suggestion 2"
+    "Specific, actionable suggestion 1",
+    "Specific, actionable suggestion 2",
+    "Specific, actionable suggestion 3"
   ],
-  "refinedInstruction": "optional improved instruction"
-}`;
+  "refinedInstruction": "optional improved instruction prompt"
+}
+
+Use your advanced reasoning to deeply analyze the transformation quality.`;
 
       const messages = [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: analysisPrompt },
       ];
       
-      // Use GPT-4o for fast analysis (no cascade needed for internal analysis)
+      // Use Grok 4.1 Fast Reasoning directly (no cascade - this is specialized jazz analysis)
       const llmResponse = await this.llmCascade.generateCompletion(
         messages,
         systemPrompt,
-        0.7, // Standard temperature
-        'analyst', // Use analyst role
+        0.7, // Standard temperature for reasoning
+        'jazz', // Use jazz role (maps to Grok 4.1)
         false, // No tools needed
         'json', // Request JSON format
       );
@@ -656,7 +661,7 @@ Output format (JSON):
       this.trackContribution(sessionId, 'analyst', 'claude', !!bandJamResults.results.analyst, false);
       this.trackContribution(sessionId, 'relational', 'gpt-5', !!bandJamResults.results.relational, false);
       this.trackContribution(sessionId, 'ethics', 'gpt-5', !!bandJamResults.results.ethics, false);
-      this.trackContribution(sessionId, 'verification', 'grok-2-1212', !!bandJamResults.results.verification, false);
+      this.trackContribution(sessionId, 'verification', 'grok-4-1-fast-reasoning', !!bandJamResults.results.verification, false);
       
       this.logger.log(`📊 Tracked contributions: Analyst=${bandJamResults.weights.analyst.toFixed(2)}, Relational=${bandJamResults.weights.relational.toFixed(2)}, Ethics=${bandJamResults.weights.ethics.toFixed(2)}, Verification=${bandJamResults.weights.verification.toFixed(2)}`);
     }
@@ -1171,7 +1176,7 @@ IMPORTANT: Return ONLY the final code, nothing else.`;
       this.trackContribution(sessionId, 'analyst', 'claude', !!bandJamResults.results.analyst, false);
       this.trackContribution(sessionId, 'relational', 'gpt-5', !!bandJamResults.results.relational, false);
       this.trackContribution(sessionId, 'ethics', 'gpt-5', !!bandJamResults.results.ethics, false);
-      this.trackContribution(sessionId, 'verification', 'grok-2-1212', !!bandJamResults.results.verification, false);
+      this.trackContribution(sessionId, 'verification', 'grok-4-1-fast-reasoning', !!bandJamResults.results.verification, false);
     }
     
     const synthModel = responseObj.metadata?.model || 'claude';
