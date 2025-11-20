@@ -180,8 +180,13 @@ export class VCTTEngineService {
 
   /**
    * Process a conversation step with full VCTT pipeline
+   * NEW: Supports phase progress callbacks for UI spinners
    */
-  async processStep(sessionId: string, input: string): Promise<any> {
+  async processStep(
+    sessionId: string, 
+    input: string,
+    phaseCallback?: (phase: any) => void
+  ): Promise<any> {
     this.logger.log(`Processing step for session: ${sessionId}`);
 
     // Set session ID for LLM contribution tracking
@@ -253,7 +258,7 @@ export class VCTTEngineService {
     // 🎼 BAND JAM MODE: Always run all agents in parallel with task decomposition
     this.logger.log('🎵 Starting Band Jam Mode - all agents will collaborate simultaneously');
     
-    const bandJamResults = await this.runAgents(messages, state, true);
+    const bandJamResults = await this.runAgents(messages, state, true, phaseCallback);
     
     // Extract verification data for trust adjustment
     const grokVerificationData = bandJamResults.results.verification;
@@ -483,13 +488,30 @@ export class VCTTEngineService {
    * - Planner decomposes query into subtasks
    * - All 4 agents run in parallel with specific assignments
    * - Results are weighted and combined
+   * - NEW: Emits phase progress events for UI spinners
+   * - NEW: Smart agent culling for simple queries (<30s target)
    */
-  private async runAgents(messages: Message[], state: InternalState, enableParallelVerification = false): Promise<any> {
+  private async runAgents(
+    messages: Message[], 
+    state: InternalState, 
+    enableParallelVerification = false,
+    phaseCallback?: (phase: any) => void
+  ): Promise<any> {
     this.logger.log('🎼 BAND JAM MODE: Starting collaborative multi-agent execution...');
     
     // Get the latest user query
     const latestUserMessage = messages.filter(m => m.role === 'user').pop();
     const query = latestUserMessage?.content || '';
+    
+    // 🎯 PHASE 1: Planner
+    phaseCallback?.({
+      phase: 'planner',
+      description: '🎯 Planner decomposing query...',
+      progress: 10,
+      emoji: '🎯',
+      status: 'in_progress',
+      timestamp: new Date().toISOString(),
+    });
     
     // Step 1: Planner decomposes query into parallel subtasks
     const taskPlan = await this.plannerAgent.plan(query, messages);
@@ -500,41 +522,177 @@ export class VCTTEngineService {
     this.logger.log(`   Ethics weight: ${(taskPlan.tasks[2].weight * 100).toFixed(0)}%`);
     this.logger.log(`   Verification weight: ${(taskPlan.tasks[3].weight * 100).toFixed(0)}%`);
     
+    phaseCallback?.({
+      phase: 'planner',
+      description: '✅ Plan complete - starting band jam...',
+      progress: 20,
+      emoji: '🎯',
+      status: 'complete',
+      timestamp: new Date().toISOString(),
+    });
+    
+    // 🎸 SMART AGENT CULLING: Skip low-weight agents for simple queries
+    const skipThreshold = 0.1; // Skip agents with <10% weight
+    const shouldSkipRelational = taskPlan.tasks[1].weight < skipThreshold;
+    const shouldSkipEthics = taskPlan.tasks[2].weight < skipThreshold;
+    
+    if (shouldSkipRelational) {
+      this.logger.log('⚡ CULLING: Skipping Relational agent (weight too low)');
+    }
+    if (shouldSkipEthics) {
+      this.logger.log('⚡ CULLING: Skipping Ethics agent (weight too low)');
+    }
+    
     // Step 2: Execute all agents in parallel with their specific subtasks
     this.logger.log('🎸🎹🎷🥁 All band members playing simultaneously...');
     
     const startTime = Date.now();
     
-    const [analystResult, relationalResult, ethicsResult, verificationResult] = await Promise.all([
-      // Analyst - enriched with subtask
-      this.analystAgent.analyze(messages, state, taskPlan.tasks[0].subtask).catch(err => {
-        this.logger.error(`❌ Analyst failed: ${err.message}`);
-        return null;
-      }),
+    // 🎸 PHASE 2-5: Parallel Band Jam with progress tracking
+    const agentPromises = [
+      // Analyst - always runs (core factual agent)
+      (async () => {
+        phaseCallback?.({
+          phase: 'analyst',
+          description: '🎸 Analyst gathering facts...',
+          progress: 30,
+          emoji: '🎸',
+          status: 'in_progress',
+          timestamp: new Date().toISOString(),
+        });
+        
+        const result = await this.analystAgent.analyze(messages, state, taskPlan.tasks[0].subtask).catch(err => {
+          this.logger.error(`❌ Analyst failed: ${err.message}`);
+          return null;
+        });
+        
+        phaseCallback?.({
+          phase: 'analyst',
+          description: '✅ Analyst complete',
+          progress: 40,
+          emoji: '🎸',
+          status: 'complete',
+          timestamp: new Date().toISOString(),
+        });
+        
+        return result;
+      })(),
       
-      // Relational - enriched with subtask
-      this.relationalAgent.analyze(messages, state, taskPlan.tasks[1].subtask).catch(err => {
-        this.logger.error(`❌ Relational failed: ${err.message}`);
-        return null;
-      }),
+      // Relational - conditionally runs
+      (async () => {
+        if (shouldSkipRelational) {
+          phaseCallback?.({
+            phase: 'relational',
+            description: '⚡ Relational skipped (low priority)',
+            progress: 50,
+            emoji: '🎹',
+            status: 'skipped',
+            timestamp: new Date().toISOString(),
+          });
+          return null;
+        }
+        
+        phaseCallback?.({
+          phase: 'relational',
+          description: '🎹 Relational analyzing connections...',
+          progress: 50,
+          emoji: '🎹',
+          status: 'in_progress',
+          timestamp: new Date().toISOString(),
+        });
+        
+        const result = await this.relationalAgent.analyze(messages, state, taskPlan.tasks[1].subtask).catch(err => {
+          this.logger.error(`❌ Relational failed: ${err.message}`);
+          return null;
+        });
+        
+        phaseCallback?.({
+          phase: 'relational',
+          description: '✅ Relational complete',
+          progress: 60,
+          emoji: '🎹',
+          status: 'complete',
+          timestamp: new Date().toISOString(),
+        });
+        
+        return result;
+      })(),
       
-      // Ethics - enriched with subtask
-      this.ethicsAgent.analyze(messages, state, taskPlan.tasks[2].subtask).catch(err => {
-        this.logger.error(`❌ Ethics failed: ${err.message}`);
-        return null;
-      }),
+      // Ethics - conditionally runs
+      (async () => {
+        if (shouldSkipEthics) {
+          phaseCallback?.({
+            phase: 'ethics',
+            description: '⚡ Ethics skipped (low priority)',
+            progress: 70,
+            emoji: '🎷',
+            status: 'skipped',
+            timestamp: new Date().toISOString(),
+          });
+          return null;
+        }
+        
+        phaseCallback?.({
+          phase: 'ethics',
+          description: '🎷 Ethics evaluating implications...',
+          progress: 70,
+          emoji: '🎷',
+          status: 'in_progress',
+          timestamp: new Date().toISOString(),
+        });
+        
+        const result = await this.ethicsAgent.analyze(messages, state, taskPlan.tasks[2].subtask).catch(err => {
+          this.logger.error(`❌ Ethics failed: ${err.message}`);
+          return null;
+        });
+        
+        phaseCallback?.({
+          phase: 'ethics',
+          description: '✅ Ethics complete',
+          progress: 80,
+          emoji: '🎷',
+          status: 'complete',
+          timestamp: new Date().toISOString(),
+        });
+        
+        return result;
+      })(),
       
-      // Verifier (Grok) - truth anchor drummer with veto power
-      this.verifierAgent.verify(
-        query,
-        {}, // Empty initially - will cross-check after synthesis
-        messages,
-        taskPlan.tasks[3].subtask
-      ).catch(err => {
-        this.logger.error(`❌ Verifier failed: ${err.message}`);
-        return null;
-      }),
-    ]);
+      // Verifier (Grok) - always runs (truth anchor)
+      (async () => {
+        phaseCallback?.({
+          phase: 'verifier',
+          description: '🥁 Grok verifying facts...',
+          progress: 85,
+          emoji: '🥁',
+          status: 'in_progress',
+          timestamp: new Date().toISOString(),
+        });
+        
+        const result = await this.verifierAgent.verify(
+          query,
+          {}, // Empty initially - will cross-check after synthesis
+          messages,
+          taskPlan.tasks[3].subtask
+        ).catch(err => {
+          this.logger.error(`❌ Verifier failed: ${err.message}`);
+          return null;
+        });
+        
+        phaseCallback?.({
+          phase: 'verifier',
+          description: '✅ Grok verification complete',
+          progress: 90,
+          emoji: '🥁',
+          status: 'complete',
+          timestamp: new Date().toISOString(),
+        });
+        
+        return result;
+      })(),
+    ];
+    
+    const [analystResult, relationalResult, ethicsResult, verificationResult] = await Promise.all(agentPromises);
     
     const elapsed = Date.now() - startTime;
     this.logger.log(`✅ Band jam complete in ${elapsed}ms (${(elapsed / 1000).toFixed(2)}s)`);
@@ -542,14 +700,15 @@ export class VCTTEngineService {
     // Step 3: Log individual contributions for analytics
     const contributions = [
       { agent: 'analyst', weight: taskPlan.tasks[0].weight, success: !!analystResult },
-      { agent: 'relational', weight: taskPlan.tasks[1].weight, success: !!relationalResult },
-      { agent: 'ethics', weight: taskPlan.tasks[2].weight, success: !!ethicsResult },
+      { agent: 'relational', weight: taskPlan.tasks[1].weight, success: !!relationalResult, skipped: shouldSkipRelational },
+      { agent: 'ethics', weight: taskPlan.tasks[2].weight, success: !!ethicsResult, skipped: shouldSkipEthics },
       { agent: 'verification', weight: taskPlan.tasks[3].weight, success: !!verificationResult },
     ];
     
     contributions.forEach(c => {
-      const status = c.success ? '✅' : '❌';
-      this.logger.log(`   ${status} ${c.agent}: ${(c.weight * 100).toFixed(0)}% contribution`);
+      const status = c.skipped ? '⚡' : (c.success ? '✅' : '❌');
+      const suffix = c.skipped ? ' (skipped)' : '';
+      this.logger.log(`   ${status} ${c.agent}: ${(c.weight * 100).toFixed(0)}% contribution${suffix}`);
     });
     
     // Step 4: Return aggregated results for synthesizer
@@ -568,6 +727,10 @@ export class VCTTEngineService {
         verification: taskPlan.tasks[3].weight,
       },
       totalLatency: elapsed,
+      culled: {
+        relational: shouldSkipRelational,
+        ethics: shouldSkipEthics,
+      },
     };
   }
 

@@ -174,3 +174,58 @@ export class StreamRequestDto {
   })
   history?: Array<{ role: string; content: string }>;
 }
+
+/**
+ * 🎵 PHASE PROGRESS DTO
+ * 
+ * Emitted during Band Jam Mode to show which phase the band is in.
+ * Frontend can use this to display spinners/progress bars.
+ */
+export class StreamPhaseDto {
+  @ApiProperty({ 
+    description: 'Current phase of band jam',
+    example: 'planner',
+    enum: ['planner', 'analyst', 'relational', 'ethics', 'verifier', 'synthesiser', 'complete']
+  })
+  phase: 'planner' | 'analyst' | 'relational' | 'ethics' | 'verifier' | 'synthesiser' | 'complete';
+
+  @ApiProperty({ 
+    description: 'Human-readable phase description',
+    example: '🎯 Planner decomposing query...' 
+  })
+  description: string;
+
+  @ApiProperty({ 
+    description: 'Progress percentage (0-100)',
+    example: 25,
+    minimum: 0,
+    maximum: 100 
+  })
+  progress: number;
+
+  @ApiProperty({ 
+    description: 'Agent emoji for visual feedback',
+    example: '🎯',
+    required: false 
+  })
+  emoji?: string;
+
+  @ApiProperty({ 
+    description: 'Phase status',
+    example: 'in_progress',
+    enum: ['pending', 'in_progress', 'complete', 'skipped', 'failed']
+  })
+  status: 'pending' | 'in_progress' | 'complete' | 'skipped' | 'failed';
+
+  @ApiProperty({ 
+    description: 'Phase timestamp',
+    example: '2025-11-20T10:30:45.123Z' 
+  })
+  timestamp: string;
+
+  @ApiProperty({ 
+    description: 'Session ID',
+    example: 'stream_abc123xyz' 
+  })
+  sessionId: string;
+}
