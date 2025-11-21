@@ -27,22 +27,36 @@ import {
   Logger
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { IsString, IsOptional, IsIn } from 'class-validator';
 import { SafetyStewardAgent, OperationMode } from '../agents/safety-steward.agent';
 import { RegulationGuard, BypassRegulation } from '../guards/regulation.guard';
 
 // DTO Classes
 class KillSwitchDto {
+  @IsString()
   reason: string;
+
+  @IsOptional()
+  @IsString()
   adminId?: string;
 }
 
 class SetModeDto {
-  mode: OperationMode;
+  @IsString()
+  @IsIn(['RESEARCH', 'DEVELOPMENT', 'PRODUCTION', 'AUTONOMOUS', 'EMERGENCY'])
+  mode: string;
+
+  @IsOptional()
+  @IsString()
   adminId?: string;
+
+  @IsOptional()
+  @IsString()
   reason?: string;
 }
 
 class MemoryToggleDto {
+  @IsString()
   userId: string;
 }
 
@@ -162,15 +176,21 @@ export class SafetyController {
   async setMode(@Body() dto: SetModeDto) {
     try {
       // Map PRODUCTION to AUTONOMOUS (frontend compatibility)
-      let targetMode = dto.mode;
-      if (dto.mode === 'PRODUCTION' as any) {
+      let targetMode: OperationMode;
+      
+      if (dto.mode === 'PRODUCTION') {
         targetMode = OperationMode.AUTONOMOUS;
-      }
-
-      const validModes = Object.values(OperationMode);
-      if (!validModes.includes(targetMode)) {
+      } else if (dto.mode === 'RESEARCH') {
+        targetMode = OperationMode.RESEARCH;
+      } else if (dto.mode === 'DEVELOPMENT') {
+        targetMode = OperationMode.DEVELOPMENT;
+      } else if (dto.mode === 'AUTONOMOUS') {
+        targetMode = OperationMode.AUTONOMOUS;
+      } else if (dto.mode === 'EMERGENCY') {
+        targetMode = OperationMode.EMERGENCY;
+      } else {
         throw new HttpException(
-          `Invalid mode. Must be one of: ${validModes.join(', ')}`,
+          `Invalid mode: ${dto.mode}. Must be one of: RESEARCH, DEVELOPMENT, PRODUCTION, AUTONOMOUS, EMERGENCY`,
           HttpStatus.BAD_REQUEST
         );
       }
