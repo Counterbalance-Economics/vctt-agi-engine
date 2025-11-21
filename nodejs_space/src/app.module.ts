@@ -2,6 +2,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_FILTER } from '@nestjs/core';
 import { VCTTEngineService } from './services/vctt-engine.service';
 import { AnalyticsService } from './services/analytics.service';
@@ -21,6 +22,7 @@ import { KnowledgeGraphService } from './services/knowledge-graph.service';
 import { ConceptHierarchyService } from './services/concept-hierarchy.service';
 import { GoalService } from './services/goal.service';
 import { StateInjectionService } from './services/state-injection.service';
+import { SchedulerService } from './services/scheduler.service';
 import { SessionController } from './controllers/session.controller';
 import { HealthController } from './controllers/health.controller';
 import { AnalyticsController } from './controllers/analytics.controller';
@@ -31,6 +33,7 @@ import { SafetyController } from './controllers/safety.controller';
 import { MemoryController } from './controllers/memory.controller';
 import { KnowledgeController } from './controllers/knowledge.controller';
 import { GoalController } from './controllers/goal.controller';
+import { SchedulerController } from './controllers/scheduler.controller';
 import { PlannerAgent } from './agents/planner.agent';
 import { AnalystAgent } from './agents/analyst.agent';
 import { RelationalAgent } from './agents/relational.agent';
@@ -60,6 +63,9 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    
+    // Task Scheduler module (for autonomous task execution)
+    ScheduleModule.forRoot(),
     
     // TypeORM PostgreSQL Configuration - Only if DATABASE_URL is set
     ...(process.env.DATABASE_URL
@@ -103,6 +109,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     ConceptHierarchyService, // Concept hierarchies (Stage 2)
     GoalService, // Goal system (Stage 3)
     StateInjectionService, // State awareness (Stage 3)
+    SchedulerService, // Autonomous task scheduling (Stage 4)
     
     // Agents
     PlannerAgent,
@@ -140,6 +147,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     MemoryController, // Memory & Consent APIs (Stage 1)
     KnowledgeController, // Knowledge Graph APIs (Stage 2)
     GoalController, // Goal System APIs (Stage 3)
+    SchedulerController, // Autonomous Task Scheduling (Stage 4)
   ],
 })
 export class AppModule {}
