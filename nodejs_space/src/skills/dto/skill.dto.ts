@@ -23,15 +23,15 @@ export class CreateSkillDto {
   @IsString({ each: true })
   tags: string[];
 
-  @ApiProperty({ description: 'Input schema for the skill', type: 'object' })
+  @ApiProperty({ description: 'Input schema for the skill', type: Object })
   @IsObject()
   inputSchema: Record<string, any>;
 
-  @ApiProperty({ description: 'Step-by-step pattern', type: 'object' })
+  @ApiProperty({ description: 'Step-by-step pattern', type: Object })
   @IsObject()
   pattern: Record<string, any>;
 
-  @ApiProperty({ description: 'Expected outcomes and success criteria', type: 'object' })
+  @ApiProperty({ description: 'Expected outcomes and success criteria', type: Object })
   @IsObject()
   expectedOutcome: Record<string, any>;
 
@@ -54,7 +54,7 @@ export class UpdateSkillDto {
   @IsOptional()
   description?: string;
 
-  @ApiProperty({ description: 'Updated pattern', required: false, type: 'object' })
+  @ApiProperty({ description: 'Updated pattern', required: false, type: Object })
   @IsObject()
   @IsOptional()
   pattern?: Record<string, any>;

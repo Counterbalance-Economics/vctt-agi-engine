@@ -1,6 +1,6 @@
 
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../services/prisma.service';
 import { CreateSkillDto, UpdateSkillDto } from './dto/skill.dto';
 
 @Injectable()
@@ -15,7 +15,7 @@ export class SkillsService {
   async createSkill(dto: CreateSkillDto, createdBy: string = 'system') {
     this.logger.log(`Creating new skill: ${dto.name} in category ${dto.category}`);
 
-    const skill = await this.prisma.skill.create({
+    const skill = await this.prisma.skills.create({
       data: {
         name: dto.name,
         description: dto.description,
@@ -64,7 +64,7 @@ export class SkillsService {
   }) {
     const { category, tags, minSuccessRate, limit = 100 } = filters || {};
 
-    return this.prisma.skill.findMany({
+    return this.prisma.skills.findMany({
       where: {
         ...(category && { category }),
         ...(tags && tags.length > 0 && { tags: { hasSome: tags } }),
@@ -79,7 +79,7 @@ export class SkillsService {
    * Get skill by ID
    */
   async getSkillById(id: string) {
-    const skill = await this.prisma.skill.findUnique({
+    const skill = await this.prisma.skills.findUnique({
       where: { id },
     });
 
@@ -105,7 +105,7 @@ export class SkillsService {
 
     // Simple text search on name and description
     // In production, use full-text search or vector embeddings
-    const skills = await this.prisma.skill.findMany({
+    const skills = await this.prisma.skills.findMany({
       where: {
         AND: [
           {
@@ -132,7 +132,7 @@ export class SkillsService {
   async updateSkill(id: string, dto: UpdateSkillDto) {
     this.logger.log(`Updating skill: ${id}`);
 
-    const skill = await this.prisma.skill.findUnique({
+    const skill = await this.prisma.skills.findUnique({
       where: { id },
     });
 
@@ -140,7 +140,7 @@ export class SkillsService {
       throw new NotFoundException(`Skill ${id} not found`);
     }
 
-    const updatedSkill = await this.prisma.skill.update({
+    const updatedSkill = await this.prisma.skills.update({
       where: { id },
       data: {
         ...(dto.description && { description: dto.description }),
@@ -160,7 +160,7 @@ export class SkillsService {
   async recordSkillUsage(id: string, success: boolean) {
     this.logger.log(`Recording skill usage: ${id} | Success: ${success}`);
 
-    const skill = await this.prisma.skill.findUnique({
+    const skill = await this.prisma.skills.findUnique({
       where: { id },
     });
 
@@ -174,7 +174,7 @@ export class SkillsService {
     const newSuccessfulUses = successfulUses + (success ? 1 : 0);
     const newSuccessRate = (newSuccessfulUses / newUsageCount) * 100;
 
-    const updatedSkill = await this.prisma.skill.update({
+    const updatedSkill = await this.prisma.skills.update({
       where: { id },
       data: {
         usageCount: newUsageCount,
@@ -276,7 +276,7 @@ export class SkillsService {
    * Get skill categories
    */
   async getCategories() {
-    const skills = await this.prisma.skill.findMany({
+    const skills = await this.prisma.skills.findMany({
       select: { category: true },
       distinct: ['category'],
     });
@@ -288,8 +288,8 @@ export class SkillsService {
    * Get skill statistics
    */
   async getStatistics() {
-    const totalSkills = await this.prisma.skill.count();
-    const skills = await this.prisma.skill.findMany();
+    const totalSkills = await this.prisma.skills.count();
+    const skills = await this.prisma.skills.findMany();
 
     const avgSuccessRate =
       skills.reduce((sum, s) => sum + s.successRate, 0) / totalSkills || 0;

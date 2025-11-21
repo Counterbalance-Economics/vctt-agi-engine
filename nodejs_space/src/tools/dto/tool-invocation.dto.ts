@@ -18,7 +18,7 @@ export class InvokeToolDto {
   @IsNotEmpty()
   tool: ToolName;
 
-  @ApiProperty({ description: 'Tool input parameters', type: 'object' })
+  @ApiProperty({ description: 'Tool input parameters', type: Object })
   @IsObject()
   @IsNotEmpty()
   input: Record<string, any>;
@@ -44,7 +44,7 @@ export class ToolInvocationResponseDto {
   @ApiProperty()
   status: string;
 
-  @ApiProperty({ type: 'object' })
+  @ApiProperty({ type: Object })
   output: Record<string, any>;
 
   @ApiProperty()

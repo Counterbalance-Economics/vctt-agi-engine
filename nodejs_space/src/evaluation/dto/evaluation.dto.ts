@@ -19,7 +19,7 @@ export class CreateEvaluationDto {
   @Max(100)
   score: number;
 
-  @ApiProperty({ description: 'Evaluation criteria and details', type: 'object' })
+  @ApiProperty({ description: 'Evaluation criteria and details', type: Object })
   @IsObject()
   criteria: Record<string, any>;
 
@@ -28,7 +28,7 @@ export class CreateEvaluationDto {
   @IsOptional()
   humanFeedback?: string;
 
-  @ApiProperty({ description: 'Metadata about the evaluation', required: false })
+  @ApiProperty({ description: 'Metadata about the evaluation', required: false, type: Object })
   @IsObject()
   @IsOptional()
   metadata?: Record<string, any>;

@@ -244,7 +244,7 @@ async function seedSkills() {
   ];
 
   for (const skill of skills) {
-    await prisma.skill.upsert({
+    await prisma.skills.upsert({
       where: { name: skill.name },
       update: skill,
       create: skill,

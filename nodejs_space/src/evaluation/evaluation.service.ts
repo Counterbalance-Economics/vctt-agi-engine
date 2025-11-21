@@ -1,6 +1,6 @@
 
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../services/prisma.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CreateEvaluationDto, CreateCoachProposalDto } from './dto/evaluation.dto';
 

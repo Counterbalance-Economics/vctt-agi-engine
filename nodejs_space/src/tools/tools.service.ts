@@ -1,6 +1,6 @@
 
 import { Injectable, Logger, ForbiddenException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../services/prisma.service';
 import { ToolName, InvokeToolDto } from './dto/tool-invocation.dto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
