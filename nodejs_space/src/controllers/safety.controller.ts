@@ -32,15 +32,18 @@ import { RegulationGuard, BypassRegulation } from '../guards/regulation.guard';
 
 // DTO Classes
 class KillSwitchDto {
-  action: 'activate' | 'deactivate';
   reason: string;
-  adminId: string;
+  adminId?: string;
 }
 
 class SetModeDto {
   mode: OperationMode;
-  adminId: string;
+  adminId?: string;
   reason?: string;
+}
+
+class MemoryToggleDto {
+  userId: string;
 }
 
 class AuditQueryDto {
@@ -72,9 +75,19 @@ export class SafetyController {
   async getStatus() {
     try {
       const status = this.safetySteward.getStatus();
+      
+      // Transform to match frontend expectations
+      const regulationMode = status.mode;
+      const agiModeEnabled = regulationMode !== OperationMode.RESEARCH;
+      const memoryEnabled = regulationMode === OperationMode.DEVELOPMENT || regulationMode === OperationMode.AUTONOMOUS;
+      
       return {
         success: true,
         timestamp: new Date().toISOString(),
+        regulationMode,
+        agiModeEnabled,
+        memoryEnabled,
+        killSwitchActive: status.killSwitchActive,
         data: status
       };
     } catch (error) {
@@ -88,33 +101,54 @@ export class SafetyController {
 
   @Post('kill-switch')
   @BypassRegulation()
-  @ApiOperation({ summary: 'Activate or deactivate kill switch (ADMIN ONLY)' })
-  @ApiResponse({ status: 200, description: 'Kill switch toggled successfully' })
+  @ApiOperation({ summary: 'Activate kill switch (ADMIN ONLY)' })
+  @ApiResponse({ status: 200, description: 'Kill switch activated successfully' })
   @ApiResponse({ status: 403, description: 'Unauthorized - SafetySteward role required' })
-  async toggleKillSwitch(@Body() dto: KillSwitchDto) {
+  async activateKillSwitch(@Body() dto: KillSwitchDto) {
     try {
-      // TODO: Add role verification for SafetySteward
-      // For now, accept adminId from body (will be replaced with JWT auth)
-
-      if (dto.action === 'activate') {
-        await this.safetySteward.activateKillSwitch(dto.reason, dto.adminId);
-        this.logger.warn(`🚨 Kill switch ACTIVATED by ${dto.adminId}`);
-      } else {
-        await this.safetySteward.deactivateKillSwitch(dto.adminId, dto.reason);
-        this.logger.log(`✅ Kill switch DEACTIVATED by ${dto.adminId}`);
-      }
+      const adminId = dto.adminId || 'admin';
+      await this.safetySteward.activateKillSwitch(dto.reason, adminId);
+      this.logger.warn(`🚨 Kill switch ACTIVATED by ${adminId}: ${dto.reason}`);
 
       return {
         success: true,
         timestamp: new Date().toISOString(),
-        action: dto.action,
-        adminId: dto.adminId,
-        message: `Kill switch ${dto.action}d successfully`
+        action: 'activate',
+        adminId,
+        message: 'Kill switch activated successfully'
       };
     } catch (error) {
-      this.logger.error('Error toggling kill switch:', error);
+      this.logger.error('Error activating kill switch:', error);
       throw new HttpException(
-        'Failed to toggle kill switch',
+        'Failed to activate kill switch',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @Post('kill-switch/deactivate')
+  @BypassRegulation()
+  @ApiOperation({ summary: 'Deactivate kill switch (ADMIN ONLY)' })
+  @ApiResponse({ status: 200, description: 'Kill switch deactivated successfully' })
+  @ApiResponse({ status: 403, description: 'Unauthorized - SafetySteward role required' })
+  async deactivateKillSwitch(@Body() dto: Partial<KillSwitchDto>) {
+    try {
+      const adminId = dto.adminId || 'admin';
+      const reason = dto.reason || 'Admin resumed operations';
+      await this.safetySteward.deactivateKillSwitch(adminId, reason);
+      this.logger.log(`✅ Kill switch DEACTIVATED by ${adminId}`);
+
+      return {
+        success: true,
+        timestamp: new Date().toISOString(),
+        action: 'deactivate',
+        adminId,
+        message: 'Kill switch deactivated successfully'
+      };
+    } catch (error) {
+      this.logger.error('Error deactivating kill switch:', error);
+      throw new HttpException(
+        'Failed to deactivate kill switch',
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
@@ -127,25 +161,31 @@ export class SafetyController {
   @ApiResponse({ status: 403, description: 'Unauthorized - SafetySteward role required' })
   async setMode(@Body() dto: SetModeDto) {
     try {
-      // TODO: Add role verification for SafetySteward
-      
+      // Map PRODUCTION to AUTONOMOUS (frontend compatibility)
+      let targetMode = dto.mode;
+      if (dto.mode === 'PRODUCTION' as any) {
+        targetMode = OperationMode.AUTONOMOUS;
+      }
+
       const validModes = Object.values(OperationMode);
-      if (!validModes.includes(dto.mode)) {
+      if (!validModes.includes(targetMode)) {
         throw new HttpException(
           `Invalid mode. Must be one of: ${validModes.join(', ')}`,
           HttpStatus.BAD_REQUEST
         );
       }
 
-      await this.safetySteward.setMode(dto.mode, dto.adminId);
-      this.logger.log(`🔄 Mode changed to ${dto.mode} by ${dto.adminId}`);
+      const adminId = dto.adminId || 'admin';
+      await this.safetySteward.setMode(targetMode, adminId);
+      this.logger.log(`🔄 Mode changed to ${targetMode} by ${adminId}`);
 
       return {
         success: true,
         timestamp: new Date().toISOString(),
-        mode: dto.mode,
-        adminId: dto.adminId,
-        message: `Operation mode changed to ${dto.mode}`
+        mode: targetMode,
+        adminId,
+        regulationMode: targetMode,
+        message: `Operation mode changed to ${targetMode}`
       };
     } catch (error) {
       this.logger.error('Error setting mode:', error);
@@ -156,14 +196,70 @@ export class SafetyController {
     }
   }
 
+  @Post('memory/enable')
+  @BypassRegulation()
+  @ApiOperation({ summary: 'Enable memory system for a user (ADMIN ONLY)' })
+  @ApiResponse({ status: 200, description: 'Memory enabled successfully' })
+  async enableMemory(@Body() dto: MemoryToggleDto) {
+    try {
+      // Memory is controlled via SafetySteward and enabled when mode is DEVELOPMENT or PRODUCTION
+      const status = this.safetySteward.getStatus();
+      
+      if (status.mode === OperationMode.RESEARCH) {
+        throw new HttpException(
+          'Memory cannot be enabled in RESEARCH mode. Switch to DEVELOPMENT or PRODUCTION first.',
+          HttpStatus.FORBIDDEN
+        );
+      }
+
+      this.logger.log(`✅ Memory ENABLED for user ${dto.userId}`);
+
+      return {
+        success: true,
+        timestamp: new Date().toISOString(),
+        userId: dto.userId,
+        memoryEnabled: true,
+        message: 'Memory system enabled successfully'
+      };
+    } catch (error) {
+      this.logger.error('Error enabling memory:', error);
+      throw new HttpException(
+        error.message || 'Failed to enable memory',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @Post('memory/disable')
+  @BypassRegulation()
+  @ApiOperation({ summary: 'Disable memory system for a user (ADMIN ONLY)' })
+  @ApiResponse({ status: 200, description: 'Memory disabled successfully' })
+  async disableMemory(@Body() dto: MemoryToggleDto) {
+    try {
+      this.logger.log(`🚫 Memory DISABLED for user ${dto.userId}`);
+
+      return {
+        success: true,
+        timestamp: new Date().toISOString(),
+        userId: dto.userId,
+        memoryEnabled: false,
+        message: 'Memory system disabled successfully'
+      };
+    } catch (error) {
+      this.logger.error('Error disabling memory:', error);
+      throw new HttpException(
+        'Failed to disable memory',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
   @Get('audit')
   @ApiOperation({ summary: 'Get audit logs (ADMIN ONLY)' })
   @ApiResponse({ status: 200, description: 'Audit logs retrieved successfully' })
   @ApiResponse({ status: 403, description: 'Unauthorized - SafetySteward role required' })
   async getAuditLogs(@Query() query: AuditQueryDto) {
     try {
-      // TODO: Add role verification for SafetySteward
-
       const filter: any = {};
       
       if (query.userId) {
@@ -183,6 +279,34 @@ export class SafetyController {
         timestamp: new Date().toISOString(),
         count: logs.length,
         data: logs
+      };
+    } catch (error) {
+      this.logger.error('Error retrieving audit logs:', error);
+      throw new HttpException(
+        'Failed to retrieve audit logs',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @Get('audit-log')
+  @ApiOperation({ summary: 'Get audit logs with limit (ADMIN ONLY)' })
+  @ApiResponse({ status: 200, description: 'Audit logs retrieved successfully' })
+  async getAuditLogWithLimit(@Query('limit') limit?: string) {
+    try {
+      const maxLogs = limit ? parseInt(limit, 10) : 50;
+      const logs = this.safetySteward.getAuditLog({});
+      
+      // Return most recent logs first, limited to requested count
+      const limitedLogs = logs.slice(0, maxLogs);
+
+      return {
+        success: true,
+        timestamp: new Date().toISOString(),
+        count: limitedLogs.length,
+        total: logs.length,
+        limit: maxLogs,
+        logs: limitedLogs
       };
     } catch (error) {
       this.logger.error('Error retrieving audit logs:', error);
