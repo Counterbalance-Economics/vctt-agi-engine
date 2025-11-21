@@ -15,6 +15,7 @@ import {
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { IsString, IsOptional, IsInt, IsIn, Min, Max } from 'class-validator';
 import { GoalService, CreateGoalDto, UpdateGoalDto, AddProgressDto } from '../services/goal.service';
+import { StateInjectionService } from '../services/state-injection.service';
 import { BypassRegulation } from '../guards/regulation.guard';
 
 // DTOs
@@ -110,7 +111,10 @@ class ChangeStatusDto {
 export class GoalController {
   private readonly logger = new Logger(GoalController.name);
 
-  constructor(private readonly goalService: GoalService) {}
+  constructor(
+    private readonly goalService: GoalService,
+    private readonly stateInjection: StateInjectionService,
+  ) {}
 
   @Post()
   @BypassRegulation()
@@ -189,6 +193,28 @@ export class GoalController {
       };
     } catch (error) {
       this.logger.error('Error fetching goal tree:', error);
+      throw error;
+    }
+  }
+
+  @Get('state-awareness')
+  @ApiOperation({ summary: 'Get MIN state awareness (self-awareness test)' })
+  @ApiResponse({ status: 200, description: 'State awareness retrieved successfully' })
+  async getStateAwareness() {
+    try {
+      const prompt = await this.stateInjection.buildStateAwarenessPrompt();
+      const context = await this.stateInjection.getSystemState();
+      const minimalContext = await this.stateInjection.buildMinimalStateContext();
+      
+      return {
+        success: true,
+        timestamp: new Date().toISOString(),
+        context,
+        minimalContext,
+        fullPrompt: prompt,
+      };
+    } catch (error) {
+      this.logger.error('Error getting state awareness:', error);
       throw error;
     }
   }
