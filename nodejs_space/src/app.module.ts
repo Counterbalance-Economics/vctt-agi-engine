@@ -12,18 +12,29 @@ import { LLMCacheService } from './services/llm-cache.service';
 import { TruthMyceliumService } from './services/truth-mycelium.service';
 import { DeepAgentService } from './services/deepagent.service';
 import { IdeService } from './services/ide.service';
+import { MemoryService } from './services/memory.service';
+import { ConsentManagerService } from './services/consent-manager.service';
+import { EmbeddingsService} from './services/embeddings.service';
+import { PrismaService } from './services/prisma.service';
+import { EntityExtractionService } from './services/entity-extraction.service';
+import { KnowledgeGraphService } from './services/knowledge-graph.service';
+import { ConceptHierarchyService } from './services/concept-hierarchy.service';
 import { SessionController } from './controllers/session.controller';
 import { HealthController } from './controllers/health.controller';
 import { AnalyticsController } from './controllers/analytics.controller';
 import { LLMCommitteeController } from './controllers/llm-committee.controller';
 import { TruthMyceliumController } from './controllers/truth-mycelium.controller';
 import { IdeController } from './controllers/ide.controller';
+import { SafetyController } from './controllers/safety.controller';
+import { MemoryController } from './controllers/memory.controller';
+import { KnowledgeController } from './controllers/knowledge.controller';
 import { PlannerAgent } from './agents/planner.agent';
 import { AnalystAgent } from './agents/analyst.agent';
 import { RelationalAgent } from './agents/relational.agent';
 import { EthicsAgent } from './agents/ethics.agent';
 import { SynthesiserAgent } from './agents/synthesiser.agent';
 import { VerifierAgent } from './agents/verifier.agent';
+import { SafetyStewardAgent } from './agents/safety-steward.agent';
 import { SIMModule } from './modules/sim.module';
 import { CAMModule } from './modules/cam.module';
 import { SREModule } from './modules/sre.module';
@@ -31,6 +42,7 @@ import { CTMModule } from './modules/ctm.module';
 import { RILModule } from './modules/ril.module';
 import { RateLimitGuard } from './guards/rate-limit.guard';
 import { CostLimitGuard } from './guards/cost-limit.guard';
+import { RegulationGuard } from './guards/regulation.guard';
 import { Conversation } from './entities/conversation.entity';
 import { Message } from './entities/message.entity';
 import { InternalState } from './entities/internal-state.entity';
@@ -79,6 +91,13 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     TruthMyceliumService,
     DeepAgentService, // Autonomous engineering co-pilot
     IdeService, // IDE operations (Phase 3.5)
+    PrismaService, // Prisma database client (Stage 1)
+    MemoryService, // Memory persistence (Stage 1)
+    ConsentManagerService, // Consent management (Stage 1)
+    EmbeddingsService, // Embeddings for semantic search (Stage 1)
+    EntityExtractionService, // Entity extraction (Stage 2)
+    KnowledgeGraphService, // Knowledge graph operations (Stage 2)
+    ConceptHierarchyService, // Concept hierarchies (Stage 2)
     
     // Agents
     PlannerAgent,
@@ -87,6 +106,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     EthicsAgent,
     SynthesiserAgent,
     VerifierAgent,
+    SafetyStewardAgent,
     
     // Modules
     SIMModule,
@@ -98,6 +118,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     // Guards (for @UseGuards decorator)
     RateLimitGuard,
     CostLimitGuard,
+    RegulationGuard,
     
     // WebSocket Gateway
     StreamingGateway,
@@ -110,6 +131,9 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     LLMCommitteeController,
     TruthMyceliumController,
     IdeController,
+    SafetyController,
+    MemoryController, // Memory & Consent APIs (Stage 1)
+    KnowledgeController, // Knowledge Graph APIs (Stage 2)
   ],
 })
 export class AppModule {}

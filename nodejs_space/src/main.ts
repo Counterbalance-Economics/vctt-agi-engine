@@ -64,12 +64,15 @@ async function bootstrap() {
       '🎨 **IDE Backend APIs**: Complete file management, code analysis, testing, and deployment services.\n' +
       'Endpoints: `/api/ide/*` - File tree, operations, code editing, test runner, analysis, deployment'
     )
-    .setVersion('3.5.0')
+    .setVersion('4.0.0-alpha')
     .addTag('session', 'Session management and conversation endpoints')
     .addTag('health', 'Service health monitoring')
     .addTag('analytics', 'Session history, analytics, and cross-session patterns')
     .addTag('streaming', 'WebSocket streaming for real-time LLM responses')
     .addTag('IDE Operations', 'Advanced IDE backend services for file management and code operations')
+    .addTag('Safety & Admin', '🛡️ AGI safety controls, kill switch, mode management, and audit logs (ADMIN ONLY)')
+    .addTag('Memory & Consent', '💾 Persistent memory system with user consent, GDPR compliance, and semantic search')
+    .addTag('Knowledge Graph', '🕸️ Entity extraction, knowledge graph operations, concept hierarchies, and semantic relationships')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
@@ -92,21 +95,25 @@ async function bootstrap() {
   const databaseStatus = process.env.DATABASE_URL ? '✅ Connected' : '⚠️  Disabled (no DATABASE_URL)';
   
   // Log server startup
+  const agiMode = process.env.AGI_MODE_ENABLED === 'true' ? '🟢 ENABLED' : '🔴 DISABLED';
+  const autonomousMode = process.env.AUTONOMOUS_MODE_ENABLED === 'true' ? '🟢 ENABLED' : '🔴 DISABLED';
+  
   console.log('');
   console.log('═══════════════════════════════════════════════════════════');
-  console.log('  🧠 VCTT-AGI COHERENCE KERNEL - PHASE 3.5');
+  console.log('  🧠 VCTT-AGI COHERENCE KERNEL - PHASE 4 (Tier 4 AGI)');
   console.log('═══════════════════════════════════════════════════════════');
   console.log(`  🚀 Service running on: http://${host}:${port}`);
   console.log(`  📚 Swagger UI: http://${host}:${port}/api`);
   console.log(`  ❤️  Health Check: http://${host}:${port}/health`);
   console.log(`  🌊 WebSocket Streaming: ws://${host}:${port}/stream`);
   console.log(`  🎨 IDE APIs: http://${host}:${port}/api/ide/*`);
+  console.log(`  🛡️  Safety APIs: http://${host}:${port}/api/safety/*`);
   console.log(`  🗄️  Database: ${databaseStatus}`);
   console.log('═══════════════════════════════════════════════════════════');
-  console.log('  Agents: Analyst | Relational | Ethics | Synthesiser | Verifier (Grok-4.1)');
-  console.log('  Modules: SIM | CAM | SRE | CTM | RIL');
-  console.log('  Features: Streaming | Truth Mycelium | IDE Backend | Cost Tracking');
-  console.log('  Max Repairs: 3 | Trust Formula: τ = 1 - (0.4T + 0.3U + 0.3C)');
+  console.log('  🤖 Agents: Analyst | Relational | Ethics | Synthesiser | Verifier | SafetySteward');
+  console.log('  📦 Modules: SIM | CAM | SRE | CTM | RIL');
+  console.log('  🛡️  AGI Safety: Charter | Kill Switch | Mode Gating | Regulation Guard');
+  console.log(`  🎛️  AGI Mode: ${agiMode} | Autonomous Mode: ${autonomousMode}`);
   console.log('═══════════════════════════════════════════════════════════');
   console.log('');
   console.log(`✅ Server successfully started and listening on ${host}:${port}`);
