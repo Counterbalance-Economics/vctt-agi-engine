@@ -12,6 +12,10 @@ import { LLMCacheService } from './services/llm-cache.service';
 import { TruthMyceliumService } from './services/truth-mycelium.service';
 import { DeepAgentService } from './services/deepagent.service';
 import { IdeService } from './services/ide.service';
+import { MemoryService } from './services/memory.service';
+import { ConsentManagerService } from './services/consent-manager.service';
+import { EmbeddingsService} from './services/embeddings.service';
+import { PrismaService } from './services/prisma.service';
 import { SessionController } from './controllers/session.controller';
 import { HealthController } from './controllers/health.controller';
 import { AnalyticsController } from './controllers/analytics.controller';
@@ -19,6 +23,7 @@ import { LLMCommitteeController } from './controllers/llm-committee.controller';
 import { TruthMyceliumController } from './controllers/truth-mycelium.controller';
 import { IdeController } from './controllers/ide.controller';
 import { SafetyController } from './controllers/safety.controller';
+import { MemoryController } from './controllers/memory.controller';
 import { PlannerAgent } from './agents/planner.agent';
 import { AnalystAgent } from './agents/analyst.agent';
 import { RelationalAgent } from './agents/relational.agent';
@@ -82,6 +87,10 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     TruthMyceliumService,
     DeepAgentService, // Autonomous engineering co-pilot
     IdeService, // IDE operations (Phase 3.5)
+    PrismaService, // Prisma database client (Stage 1)
+    MemoryService, // Memory persistence (Stage 1)
+    ConsentManagerService, // Consent management (Stage 1)
+    EmbeddingsService, // Embeddings for semantic search (Stage 1)
     
     // Agents
     PlannerAgent,
@@ -116,6 +125,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     TruthMyceliumController,
     IdeController,
     SafetyController,
+    MemoryController, // Memory & Consent APIs (Stage 1)
   ],
 })
 export class AppModule {}

@@ -1,0 +1,63 @@
+
+// This is your Prisma schema file for VCTT-AGI Memory System
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Memory Storage - Main memory table
+model user_memory {
+  id           String   @id @default(uuid())
+  user_id      String   @db.VarChar(255)
+  session_id   String?  @db.VarChar(255)
+  memory_type  String   @db.VarChar(50) // 'conversation', 'learned_fact', 'preference'
+  content      String   @db.Text
+  embedding    Json? // Stored as JSON array for semantic search (Float[])
+  metadata     Json?    @db.JsonB
+  vctt_score   Decimal? @db.Decimal(5, 2) // VCTT trust metric
+  created_at   DateTime @default(now()) @db.Timestamp(6)
+  updated_at   DateTime @updatedAt @db.Timestamp(6)
+  expires_at   DateTime? @db.Timestamp(6)
+  
+  @@index([user_id], name: "idx_user_id")
+  @@index([session_id], name: "idx_session_id")
+  @@index([created_at], name: "idx_created_at")
+  @@map("user_memory")
+}
+
+// Memory Consent Management
+model memory_consent {
+  id               String   @id @default(uuid())
+  user_id          String   @unique @db.VarChar(255)
+  consent_given    Boolean  @default(false)
+  consent_date     DateTime? @db.Timestamp(6)
+  consent_version  String?  @db.VarChar(20)
+  preferences      Json?    @db.JsonB // Fine-grained consent settings
+  created_at       DateTime @default(now()) @db.Timestamp(6)
+  updated_at       DateTime @updatedAt @db.Timestamp(6)
+  
+  @@map("memory_consent")
+}
+
+// Memory Audit Trail
+model memory_audit {
+  id                  String   @id @default(uuid())
+  user_id             String   @db.VarChar(255)
+  operation           String   @db.VarChar(50) // 'CREATE', 'READ', 'UPDATE', 'DELETE', 'EXPORT'
+  memory_id           String?  @db.VarChar(255)
+  reason              String?  @db.Text
+  vctt_verification   Boolean  @default(false)
+  timestamp           DateTime @default(now()) @db.Timestamp(6)
+  metadata            Json?    @db.JsonB
+  
+  @@index([user_id], name: "idx_audit_user_id")
+  @@index([timestamp], name: "idx_audit_timestamp")
+  @@map("memory_audit")
+}
