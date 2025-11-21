@@ -208,6 +208,9 @@ model goals {
   constraints         goal_constraints[]
   progress_entries    goal_progress[]
   audit_entries       goal_audit[]
+  scheduled_tasks     scheduled_tasks[] @relation("TaskGoals")
+  tool_invocations    tool_invocations[] @relation("InvocationGoals")
+  autonomy_audits     autonomy_audit[] @relation("AuditGoals")
   
   @@index([status], name: "idx_goals_status")
   @@index([owner], name: "idx_goals_owner")
@@ -270,4 +273,229 @@ model goal_audit {
   @@index([goal_id], name: "idx_goal_audit_goal")
   @@index([timestamp], name: "idx_goal_audit_timestamp")
   @@map("goal_audit")
+}
+
+// ═══════════════════════════════════════════════════════════
+// STAGE 4: CONSTRAINED AUTONOMY & SELF-IMPROVEMENT
+// ═══════════════════════════════════════════════════════════
+
+// Scheduled Tasks - Deferred/Periodic/Reminder execution
+model scheduled_tasks {
+  id                  Int         @id @default(autoincrement())
+  title               String      @db.VarChar(255)
+  description         String?     @db.Text
+  task_type           String      @db.VarChar(50)
+  scheduled_at        DateTime    @db.Timestamp(6)
+  cron_expression     String?     @db.VarChar(100)
+  timezone            String      @default("UTC") @db.VarChar(50)
+  status              String      @default("pending") @db.VarChar(50)
+  priority            Int         @default(3)
+  timeout_seconds     Int         @default(300)
+  max_retries         Int         @default(3)
+  retry_count         Int         @default(0)
+  tool_name           String      @db.VarChar(100)
+  tool_params         Json        @db.JsonB
+  goal_id             Int?
+  created_by          String      @db.VarChar(100)
+  requires_approval   Boolean     @default(false)
+  approved_by         String?     @db.VarChar(100)
+  approved_at         DateTime?   @db.Timestamp(6)
+  started_at          DateTime?   @db.Timestamp(6)
+  completed_at        DateTime?   @db.Timestamp(6)
+  result              Json?       @db.JsonB
+  error               String?     @db.Text
+  created_at          DateTime    @default(now()) @db.Timestamp(6)
+  updated_at          DateTime    @default(now()) @updatedAt @db.Timestamp(6)
+  metadata            Json?       @db.JsonB
+  
+  goal                goals?      @relation("TaskGoals", fields: [goal_id], references: [id], onDelete: Cascade)
+  tool_invocations    tool_invocations[]
+  autonomy_audits     autonomy_audit[]
+  
+  @@index([scheduled_at])
+  @@index([status])
+  @@index([goal_id])
+  @@index([created_by])
+  @@map("scheduled_tasks")
+}
+
+// Tool Invocations - Complete audit log
+model tool_invocations {
+  id                  Int         @id @default(autoincrement())
+  tool_name           String      @db.VarChar(100)
+  tool_version        String      @default("1.0.0") @db.VarChar(20)
+  session_id          String?     @db.VarChar(255)
+  goal_id             Int?
+  task_id             Int?
+  invoked_by          String      @db.VarChar(100)
+  invoked_at          DateTime    @default(now()) @db.Timestamp(6)
+  why                 String      @db.Text
+  params              Json        @db.JsonB
+  started_at          DateTime?   @db.Timestamp(6)
+  completed_at        DateTime?   @db.Timestamp(6)
+  duration_ms         Int?
+  status              String      @db.VarChar(50)
+  result              Json?       @db.JsonB
+  error               String?     @db.Text
+  regulation_mode     String      @db.VarChar(50)
+  permission_level    String      @db.VarChar(50)
+  blocked             Boolean     @default(false)
+  block_reason        String?     @db.Text
+  metadata            Json?       @db.JsonB
+  
+  goal                goals?      @relation("InvocationGoals", fields: [goal_id], references: [id], onDelete: SetNull)
+  task                scheduled_tasks? @relation(fields: [task_id], references: [id], onDelete: SetNull)
+  autonomy_audits     autonomy_audit[]
+  
+  @@index([tool_name])
+  @@index([invoked_by])
+  @@index([status])
+  @@index([goal_id])
+  @@index([invoked_at])
+  @@map("tool_invocations")
+}
+
+// Evaluations - Self-improvement data
+model evaluations {
+  id                  Int         @id @default(autoincrement())
+  session_id          String      @db.VarChar(255)
+  episode_type        String      @db.VarChar(50)
+  trust_tau           Float
+  latency_ms          Int
+  cost_usd            Float?
+  human_rating        Int?
+  human_feedback      String?     @db.Text
+  contradiction_count Int         @default(0)
+  repair_count        Int         @default(0)
+  models_used         Json?       @db.JsonB
+  planner_reasoning   String?     @db.Text
+  tool_calls_count    Int         @default(0)
+  success             Boolean
+  error_type          String?     @db.VarChar(100)
+  instruction         String?     @db.Text
+  response_summary    String?     @db.Text
+  evaluated_at        DateTime    @default(now()) @db.Timestamp(6)
+  metadata            Json?       @db.JsonB
+  
+  @@index([session_id])
+  @@index([episode_type])
+  @@index([evaluated_at])
+  @@index([trust_tau])
+  @@index([success])
+  @@map("evaluations")
+}
+
+// Coach Proposals - Never auto-applied
+model coach_proposals {
+  id                      Int         @id @default(autoincrement())
+  title                   String      @db.VarChar(255)
+  proposal_type           String      @db.VarChar(50)
+  analysis_summary        String      @db.Text
+  sample_size             Int
+  confidence_score        Float
+  current_behavior        String?     @db.Text
+  proposed_behavior       String      @db.Text
+  expected_improvement    String      @db.Text
+  supporting_evaluations  Json?       @db.JsonB
+  metrics                 Json?       @db.JsonB
+  status                  String      @default("pending") @db.VarChar(50)
+  reviewed_by             String?     @db.VarChar(100)
+  reviewed_at             DateTime?   @db.Timestamp(6)
+  review_notes            String?     @db.Text
+  testing_started_at      DateTime?   @db.Timestamp(6)
+  testing_ended_at        DateTime?   @db.Timestamp(6)
+  test_results            Json?       @db.JsonB
+  implemented_at          DateTime?   @db.Timestamp(6)
+  implementation_notes    String?     @db.Text
+  created_at              DateTime    @default(now()) @db.Timestamp(6)
+  updated_at              DateTime    @default(now()) @updatedAt @db.Timestamp(6)
+  metadata                Json?       @db.JsonB
+  
+  @@index([status])
+  @@index([proposal_type])
+  @@index([created_at])
+  @@map("coach_proposals")
+}
+
+// Skills - Proven pattern library
+model skills {
+  id                          Int         @id @default(autoincrement())
+  skill_name                  String      @unique @db.VarChar(100)
+  skill_version               String      @default("1.0.0") @db.VarChar(20)
+  category                    String      @db.VarChar(50)
+  title                       String      @db.VarChar(255)
+  description                 String      @db.Text
+  use_cases                   String[]
+  prompt_template             String      @db.Text
+  required_context            String[]
+  required_tools              String[]
+  success_rate                Float?
+  avg_trust_tau               Float?
+  avg_latency_ms              Int?
+  usage_count                 Int         @default(0)
+  extracted_from_evaluation_ids Json?     @db.JsonB
+  last_refined_at             DateTime?   @db.Timestamp(6)
+  refinement_notes            String?     @db.Text
+  status                      String      @default("active") @db.VarChar(50)
+  approved_by                 String      @db.VarChar(100)
+  approved_at                 DateTime    @default(now()) @db.Timestamp(6)
+  created_at                  DateTime    @default(now()) @db.Timestamp(6)
+  updated_at                  DateTime    @default(now()) @updatedAt @db.Timestamp(6)
+  metadata                    Json?       @db.JsonB
+  
+  @@index([skill_name])
+  @@index([category])
+  @@index([status])
+  @@index([success_rate])
+  @@map("skills")
+}
+
+// Tool Registry - Standardized tool definitions
+model tool_registry {
+  id                    Int         @id @default(autoincrement())
+  tool_name             String      @unique @db.VarChar(100)
+  tool_version          String      @default("1.0.0") @db.VarChar(20)
+  description           String      @db.Text
+  input_schema          Json        @db.JsonB
+  output_schema         Json        @db.JsonB
+  min_regulation_mode   String      @db.VarChar(50)
+  requires_approval     Boolean     @default(false)
+  sandbox_only          Boolean     @default(false)
+  rate_limit_per_minute Int         @default(60)
+  rate_limit_per_hour   Int         @default(1000)
+  status                String      @default("active") @db.VarChar(50)
+  created_at            DateTime    @default(now()) @db.Timestamp(6)
+  updated_at            DateTime    @default(now()) @updatedAt @db.Timestamp(6)
+  metadata              Json?       @db.JsonB
+  
+  @@index([tool_name])
+  @@index([status])
+  @@map("tool_registry")
+}
+
+// Autonomy Audit - High-level oversight
+model autonomy_audit {
+  id                  Int         @id @default(autoincrement())
+  event_type          String      @db.VarChar(50)
+  actor               String      @db.VarChar(100)
+  regulation_mode     String      @db.VarChar(50)
+  goal_id             Int?
+  task_id             Int?
+  tool_invocation_id  Int?
+  details             Json        @db.JsonB
+  risk_level          String?     @db.VarChar(20)
+  outcome             String?     @db.VarChar(50)
+  block_reason        String?     @db.Text
+  recorded_at         DateTime    @default(now()) @db.Timestamp(6)
+  metadata            Json?       @db.JsonB
+  
+  goal                goals?      @relation("AuditGoals", fields: [goal_id], references: [id], onDelete: SetNull)
+  task                scheduled_tasks? @relation(fields: [task_id], references: [id], onDelete: SetNull)
+  tool_invocation     tool_invocations? @relation(fields: [tool_invocation_id], references: [id], onDelete: SetNull)
+  
+  @@index([event_type])
+  @@index([actor])
+  @@index([recorded_at])
+  @@index([outcome])
+  @@map("autonomy_audit")
 }
