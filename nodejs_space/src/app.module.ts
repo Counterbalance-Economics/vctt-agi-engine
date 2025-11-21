@@ -18,12 +18,14 @@ import { AnalyticsController } from './controllers/analytics.controller';
 import { LLMCommitteeController } from './controllers/llm-committee.controller';
 import { TruthMyceliumController } from './controllers/truth-mycelium.controller';
 import { IdeController } from './controllers/ide.controller';
+import { SafetyController } from './controllers/safety.controller';
 import { PlannerAgent } from './agents/planner.agent';
 import { AnalystAgent } from './agents/analyst.agent';
 import { RelationalAgent } from './agents/relational.agent';
 import { EthicsAgent } from './agents/ethics.agent';
 import { SynthesiserAgent } from './agents/synthesiser.agent';
 import { VerifierAgent } from './agents/verifier.agent';
+import { SafetyStewardAgent } from './agents/safety-steward.agent';
 import { SIMModule } from './modules/sim.module';
 import { CAMModule } from './modules/cam.module';
 import { SREModule } from './modules/sre.module';
@@ -31,6 +33,7 @@ import { CTMModule } from './modules/ctm.module';
 import { RILModule } from './modules/ril.module';
 import { RateLimitGuard } from './guards/rate-limit.guard';
 import { CostLimitGuard } from './guards/cost-limit.guard';
+import { RegulationGuard } from './guards/regulation.guard';
 import { Conversation } from './entities/conversation.entity';
 import { Message } from './entities/message.entity';
 import { InternalState } from './entities/internal-state.entity';
@@ -87,6 +90,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     EthicsAgent,
     SynthesiserAgent,
     VerifierAgent,
+    SafetyStewardAgent,
     
     // Modules
     SIMModule,
@@ -98,6 +102,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     // Guards (for @UseGuards decorator)
     RateLimitGuard,
     CostLimitGuard,
+    RegulationGuard,
     
     // WebSocket Gateway
     StreamingGateway,
@@ -110,6 +115,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     LLMCommitteeController,
     TruthMyceliumController,
     IdeController,
+    SafetyController,
   ],
 })
 export class AppModule {}
