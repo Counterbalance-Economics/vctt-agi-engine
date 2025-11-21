@@ -72,6 +72,7 @@ async function bootstrap() {
     .addTag('IDE Operations', 'Advanced IDE backend services for file management and code operations')
     .addTag('Safety & Admin', '🛡️ AGI safety controls, kill switch, mode management, and audit logs (ADMIN ONLY)')
     .addTag('Memory & Consent', '💾 Persistent memory system with user consent, GDPR compliance, and semantic search')
+    .addTag('Knowledge Graph', '🕸️ Entity extraction, knowledge graph operations, concept hierarchies, and semantic relationships')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

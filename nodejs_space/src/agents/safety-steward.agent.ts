@@ -471,4 +471,12 @@ export class SafetyStewardAgent {
       this.auditLog = this.auditLog.slice(-10000);
     }
   }
+
+  /**
+   * Simplified check for write operations (Stage 2 helper)
+   */
+  async canPerformOperation(operation: 'READ' | 'WRITE', userId: string): Promise<boolean> {
+    const result = await this.checkOperation(operation, { userId });
+    return result.allowed;
+  }
 }

@@ -61,3 +61,95 @@ model memory_audit {
   @@index([timestamp], name: "idx_audit_timestamp")
   @@map("memory_audit")
 }
+
+// ============================================
+// STAGE 2: KNOWLEDGE GRAPH SCHEMA
+// ============================================
+
+// Entities (people, places, concepts, organizations, events)
+model kg_entity {
+  id                  String   @id @default(uuid())
+  user_id             String   @db.VarChar(255) // User who owns this knowledge
+  name                String   @db.VarChar(500) // Entity name
+  type                String   @db.VarChar(100) // person, place, organization, concept, event, etc.
+  description         String?  @db.Text // Description of entity
+  attributes          Json?    @db.JsonB // Flexible attributes (JSON)
+  embedding           Json?    // Semantic embedding (1536-dim vector)
+  vctt_score          Decimal  @db.Decimal(5, 2) // Trust metric for this entity
+  confidence          Decimal  @db.Decimal(5, 2) // Extraction confidence
+  first_mentioned     DateTime @default(now()) @db.Timestamp(6) // When first learned
+  last_updated        DateTime @updatedAt @db.Timestamp(6)
+  source_memory_id    String?  @db.VarChar(255) // Reference to memory that created this
+  
+  // Relationships
+  relationships_from  kg_relationship[] @relation("FromEntity")
+  relationships_to    kg_relationship[] @relation("ToEntity")
+  concept_mappings    kg_concept_mapping[]
+  
+  @@index([user_id], name: "idx_entity_user_id")
+  @@index([type], name: "idx_entity_type")
+  @@index([name], name: "idx_entity_name")
+  @@index([vctt_score], name: "idx_entity_vctt")
+  @@map("kg_entity")
+}
+
+// Relationships between entities
+model kg_relationship {
+  id                  String   @id @default(uuid())
+  user_id             String   @db.VarChar(255) // User who owns this knowledge
+  from_entity_id      String   @db.VarChar(255)
+  to_entity_id        String   @db.VarChar(255)
+  relation_type       String   @db.VarChar(100) // works_for, located_in, part_of, related_to, etc.
+  properties          Json?    @db.JsonB // Additional properties
+  vctt_score          Decimal  @db.Decimal(5, 2) // Trust metric
+  confidence          Decimal  @db.Decimal(5, 2)
+  created_at          DateTime @default(now()) @db.Timestamp(6)
+  updated_at          DateTime @updatedAt @db.Timestamp(6)
+  source_memory_id    String?  @db.VarChar(255)
+  
+  from_entity         kg_entity @relation("FromEntity", fields: [from_entity_id], references: [id], onDelete: Cascade)
+  to_entity           kg_entity @relation("ToEntity", fields: [to_entity_id], references: [id], onDelete: Cascade)
+  
+  @@index([user_id], name: "idx_rel_user_id")
+  @@index([from_entity_id], name: "idx_rel_from")
+  @@index([to_entity_id], name: "idx_rel_to")
+  @@index([relation_type], name: "idx_rel_type")
+  @@map("kg_relationship")
+}
+
+// Concepts and taxonomies
+model kg_concept {
+  id                  String   @id @default(uuid())
+  name                String   @unique @db.VarChar(255)
+  description         String?  @db.Text
+  parent_id           String?  @db.VarChar(255) // For hierarchies (AGI -> AI -> Machine Learning)
+  level               Int      @default(0) // Depth in hierarchy
+  embedding           Json? // Semantic embedding
+  vctt_score          Decimal  @db.Decimal(5, 2)
+  created_at          DateTime @default(now()) @db.Timestamp(6)
+  updated_at          DateTime @updatedAt @db.Timestamp(6)
+  
+  parent              kg_concept?  @relation("ConceptHierarchy", fields: [parent_id], references: [id], onDelete: SetNull)
+  children            kg_concept[] @relation("ConceptHierarchy")
+  entity_mappings     kg_concept_mapping[]
+  
+  @@index([parent_id], name: "idx_concept_parent")
+  @@index([name], name: "idx_concept_name")
+  @@map("kg_concept")
+}
+
+// Mapping between entities and concepts
+model kg_concept_mapping {
+  id                  String   @id @default(uuid())
+  entity_id           String   @db.VarChar(255)
+  concept_id          String   @db.VarChar(255)
+  relevance           Decimal  @db.Decimal(5, 2) // How relevant is this concept to this entity
+  
+  entity              kg_entity  @relation(fields: [entity_id], references: [id], onDelete: Cascade)
+  concept             kg_concept @relation(fields: [concept_id], references: [id], onDelete: Cascade)
+  
+  @@unique([entity_id, concept_id])
+  @@index([entity_id], name: "idx_mapping_entity")
+  @@index([concept_id], name: "idx_mapping_concept")
+  @@map("kg_concept_mapping")
+}
