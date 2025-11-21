@@ -752,4 +752,50 @@ export class IdeService {
       return { success: false, error: error.message, results: [] };
     }
   }
+
+  /**
+   * Load workspace folder context from client
+   * This registers the user's opened folder with the backend for AI context awareness
+   */
+  async loadWorkspace(
+    folderName: string,
+    filePaths: string[],
+    fileCount: number,
+    timestamp: string,
+  ): Promise<any> {
+    try {
+      this.logger.log(`📁 Loading workspace: ${folderName}`);
+      this.logger.log(`   Files: ${fileCount}`);
+      this.logger.log(`   Timestamp: ${timestamp}`);
+      
+      // Store workspace context in memory (could be persisted to database in production)
+      // For now, just log and acknowledge
+      const workspaceContext = {
+        folderName,
+        filePaths,
+        fileCount,
+        timestamp,
+        loadedAt: new Date().toISOString(),
+      };
+
+      // In a production system, you might store this in Redis or a database
+      // For now, we just acknowledge the workspace load
+      this.logger.log(`✅ Workspace registered: ${folderName} with ${fileCount} files`);
+      this.logger.log(`   Sample files: ${filePaths.slice(0, 5).join(', ')}${fileCount > 5 ? '...' : ''}`);
+
+      return {
+        success: true,
+        message: 'Workspace loaded successfully',
+        workspace: {
+          folderName,
+          fileCount,
+          timestamp,
+          status: 'online',
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Workspace load error: ${error.message}`);
+      return { success: false, error: error.message };
+    }
+  }
 }

@@ -278,4 +278,39 @@ export class IdeController {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+
+  @Post('workspace/load')
+  @ApiOperation({
+    summary: 'Load workspace folder context',
+    description: 'Register user folder with backend for AI context awareness',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        folderName: { type: 'string', description: 'Folder name' },
+        filePaths: { type: 'array', items: { type: 'string' }, description: 'Array of file paths' },
+        fileCount: { type: 'number', description: 'Number of files' },
+        timestamp: { type: 'string', description: 'Load timestamp' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Workspace loaded successfully',
+  })
+  async loadWorkspace(@Body() body: any) {
+    try {
+      this.logger.log(`📁 Workspace load request: ${body.folderName} (${body.fileCount} files)`);
+      return await this.ideService.loadWorkspace(
+        body.folderName,
+        body.filePaths,
+        body.fileCount,
+        body.timestamp,
+      );
+    } catch (error) {
+      this.logger.error(`❌ Workspace load failed: ${error.message}`);
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 }
