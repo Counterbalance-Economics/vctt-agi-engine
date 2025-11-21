@@ -47,7 +47,16 @@ export class RegulationGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const { method, url, body, headers } = request;
 
-    // Check if route bypasses regulation
+    // SAFETY ADMIN ENDPOINTS: Always allow (so admins can manage the safety system)
+    const safetyAdminPaths = ['/api/safety/'];
+    const isSafetyAdmin = safetyAdminPaths.some(path => url.includes(path));
+    
+    if (isSafetyAdmin) {
+      this.logger.debug(`✓ Safety admin endpoint detected: ${url} - bypassing regulation`);
+      return true;
+    }
+
+    // Check if route bypasses regulation (via decorator)
     const bypass = this.reflector.get(BypassRegulation, context.getHandler());
     if (bypass) {
       this.logger.debug(`✓ Route ${url} bypasses regulation`);
