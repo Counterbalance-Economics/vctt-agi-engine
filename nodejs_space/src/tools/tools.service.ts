@@ -9,7 +9,7 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
-interface ToolDefinition {
+export interface ToolDefinition {
   name: ToolName;
   description: string;
   requiredMode: string[];
@@ -28,13 +28,15 @@ export class ToolsService {
    * Get all registered tools from the database
    */
   async getRegisteredTools(): Promise<ToolDefinition[]> {
-    const tools = await this.prisma.tool_registry.findMany();
-    return tools.map((t) => ({
-      name: t.name as ToolName,
+    const tools = await this.prisma.tool_registry.findMany({
+      where: { status: 'active' },
+    });
+    return tools.map((t: any) => ({
+      name: t.tool_name as ToolName,
       description: t.description,
-      requiredMode: t.requiredMode,
-      requiredPermissions: t.requiredPermissions,
-      inputSchema: t.inputSchema as Record<string, any>,
+      requiredMode: [t.min_regulation_mode],
+      requiredPermissions: [], // Not in schema, derive from regulation_mode
+      inputSchema: (t.input_schema as any) || {},
     }));
   }
 
@@ -56,7 +58,7 @@ export class ToolsService {
     try {
       // 1. Verify tool is registered
       const toolDef = await this.prisma.tool_registry.findUnique({
-        where: { name: dto.tool },
+        where: { tool_name: dto.tool },
       });
 
       if (!toolDef) {
@@ -64,9 +66,13 @@ export class ToolsService {
       }
 
       // 2. Mode gating check
-      if (!toolDef.requiredMode.includes(mode)) {
+      const requiredModes = ['SAFE_MODE', 'EXPLORER_MODE', 'RESEARCH_MODE'];
+      const modeIndex = requiredModes.indexOf(mode);
+      const requiredIndex = requiredModes.indexOf(toolDef.min_regulation_mode);
+      
+      if (modeIndex < requiredIndex) {
         throw new ForbiddenException(
-          `Tool ${dto.tool} requires mode ${toolDef.requiredMode.join(' or ')}, current mode: ${mode}`,
+          `Tool ${dto.tool} requires at least ${toolDef.min_regulation_mode}, current mode: ${mode}`,
         );
       }
 
@@ -78,22 +84,22 @@ export class ToolsService {
       try {
         switch (dto.tool) {
           case ToolName.READ_FILE:
-            output = await this.readFile(dto.input);
+            output = await this.readFile(dto.input as { filePath: string });
             break;
           case ToolName.WRITE_FILE:
-            output = await this.writeFile(dto.input);
+            output = await this.writeFile(dto.input as { filePath: string; content: string });
             break;
           case ToolName.RUN_COMMAND:
-            output = await this.runCommand(dto.input, mode);
+            output = await this.runCommand(dto.input as { command: string; args?: string[] }, mode);
             break;
           case ToolName.SEARCH_WEB:
-            output = await this.searchWeb(dto.input);
+            output = await this.searchWeb(dto.input as { query: string; maxResults?: number });
             break;
           case ToolName.CALL_LLM:
-            output = await this.callLLM(dto.input);
+            output = await this.callLLM(dto.input as { model: string; prompt: string; systemPrompt?: string; temperature?: number });
             break;
           case ToolName.QUERY_DB:
-            output = await this.queryDB(dto.input);
+            output = await this.queryDB(dto.input as { query: string; params?: any[] });
             break;
           case ToolName.SCHEDULE_TASK:
             output = await this.scheduleTask(dto.input, userId);
@@ -111,38 +117,47 @@ export class ToolsService {
       const executionTimeMs = Date.now() - startTime;
 
       // 4. Audit log to database
-      await this.prisma.tool_invocations.create({
+      const invocation = await this.prisma.tool_invocations.create({
         data: {
-          invocationId,
-          toolName: dto.tool,
-          input: dto.input as any,
-          output: output as any,
+          tool_name: dto.tool,
+          tool_version: '1.0.0',
+          session_id: dto.context || null,
+          invoked_by: userId,
+          why: dto.justification || 'Tool invocation',
+          params: dto.input as any,
+          started_at: new Date(startTime),
+          completed_at: new Date(),
+          duration_ms: executionTimeMs,
           status,
-          mode,
-          userId,
-          justification: dto.justification || '',
-          context: dto.context || '',
-          executionTimeMs,
-          timestamp: new Date(),
-          error: errorMessage,
+          result: output as any,
+          error: errorMessage || null,
+          regulation_mode: mode,
+          permission_level: 'USER',
+          blocked: false,
+          metadata: {
+            invocationId,
+            context: dto.context,
+          } as any,
         },
       });
 
       // 5. Also log to autonomy audit
       await this.prisma.autonomy_audit.create({
         data: {
-          eventType: 'TOOL_INVOCATION',
-          actorType: 'USER',
-          actorId: userId,
-          action: `INVOKE_${dto.tool}`,
-          targetResource: JSON.stringify(dto.input),
+          event_type: 'TOOL_INVOCATION',
+          actor: userId,
+          regulation_mode: mode,
+          tool_invocation_id: invocation.id,
+          details: {
+            tool_name: dto.tool,
+            invocationId,
+            input: dto.input,
+          } as any,
+          risk_level: 'LOW',
           outcome: status,
           metadata: {
-            invocationId,
             executionTimeMs,
-            mode,
           } as any,
-          timestamp: new Date(),
         },
       });
 
@@ -164,22 +179,31 @@ export class ToolsService {
       this.logger.error(`[TOOL ERROR] ${invocationId} | ${error.message}`, error.stack);
 
       // Log failed invocation
-      await this.prisma.tool_invocations.create({
-        data: {
-          invocationId,
-          toolName: dto.tool,
-          input: dto.input as any,
-          output: { error: error.message } as any,
-          status: 'FAILED',
-          mode,
-          userId,
-          justification: dto.justification || '',
-          context: dto.context || '',
-          executionTimeMs,
-          timestamp: new Date(),
-          error: error.message,
-        },
-      });
+      try {
+        await this.prisma.tool_invocations.create({
+          data: {
+            tool_name: dto.tool,
+            tool_version: '1.0.0',
+            session_id: dto.context || null,
+            invoked_by: userId,
+            why: dto.justification || 'Tool invocation',
+            params: dto.input as any,
+            started_at: new Date(startTime),
+            completed_at: new Date(),
+            duration_ms: executionTimeMs,
+            status: 'FAILED',
+            result: { error: error.message } as any,
+            error: error.message,
+            regulation_mode: mode,
+            permission_level: 'USER',
+            blocked: error instanceof ForbiddenException,
+            block_reason: error instanceof ForbiddenException ? error.message : null,
+            metadata: { invocationId } as any,
+          },
+        });
+      } catch (dbError) {
+        this.logger.error('Failed to log tool invocation error to database', dbError);
+      }
 
       throw error;
     }
@@ -198,11 +222,11 @@ export class ToolsService {
 
     return this.prisma.tool_invocations.findMany({
       where: {
-        ...(userId && { userId }),
-        ...(toolName && { toolName }),
+        ...(userId && { invoked_by: userId }),
+        ...(toolName && { tool_name: toolName }),
         ...(status && { status }),
       },
-      orderBy: { timestamp: 'desc' },
+      orderBy: { invoked_at: 'desc' },
       take: limit,
     });
   }
@@ -354,13 +378,16 @@ export class ToolsService {
     // Delegate to scheduler service
     const task = await this.prisma.scheduled_tasks.create({
       data: {
-        taskType: input.taskType || 'DEFERRED',
-        goalId: input.goalId || null,
-        action: input.action,
-        payload: input.payload || {},
-        scheduledFor: input.scheduledFor ? new Date(input.scheduledFor) : new Date(),
-        status: 'PENDING_APPROVAL',
-        createdBy: userId,
+        task_type: input.taskType || 'DEFERRED',
+        goal_id: input.goalId || null,
+        title: input.title || `Task scheduled by ${userId}`,
+        description: input.description || input.action || 'Scheduled task',
+        tool_name: input.toolName || 'RUN_COMMAND',
+        tool_params: input.payload || {},
+        scheduled_at: input.scheduledFor ? new Date(input.scheduledFor) : new Date(),
+        status: 'pending',
+        created_by: userId,
+        requires_approval: true,
         metadata: input.metadata || {},
       },
     });
@@ -368,7 +395,7 @@ export class ToolsService {
     return {
       taskId: task.id,
       status: task.status,
-      scheduledFor: task.scheduledFor,
+      scheduledFor: task.scheduled_at,
       message: 'Task created and pending approval',
     };
   }

@@ -2,7 +2,7 @@
 import { Module } from '@nestjs/common';
 import { ToolsService } from './tools.service';
 import { ToolsController } from './tools.controller';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../services/prisma.service';
 
 @Module({
   providers: [ToolsService, PrismaService],
