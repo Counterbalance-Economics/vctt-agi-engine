@@ -142,11 +142,16 @@ export class IdeController {
   async applyCodeEdit(@Body() dto: CodeEditDto) {
     try {
       this.logger.log(`🎨 Code edit request: ${dto.filePath} - "${dto.instruction}"`);
+      if (dto.systemContext) {
+        this.logger.log(`   🧠 State-aware request with identity: ${dto.systemContext.identity}`);
+        this.logger.log(`   📊 Mode: ${dto.systemContext.regulationMode}, Memory: ${dto.systemContext.memoryEnabled}`);
+      }
       return await this.ideService.applyCodeEdit(
         dto.filePath,
         dto.instruction,
         dto.originalCode,
         dto.language,
+        dto.systemContext, // Pass through system context for state awareness
       );
     } catch (error) {
       this.logger.error(`❌ Code edit failed: ${error.message}`);

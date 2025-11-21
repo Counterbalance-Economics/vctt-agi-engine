@@ -57,6 +57,17 @@ export class CodeEditDto {
   @IsOptional()
   @IsArray()
   context?: string[];
+
+  @ApiPropertyOptional({ description: 'System context for state-aware MIN identity override' })
+  @IsOptional()
+  systemContext?: {
+    identity?: string;
+    regulationMode?: string;
+    memoryEnabled?: boolean;
+    killSwitchActive?: boolean;
+    activeGoals?: any[];
+    statePrompt?: string;
+  };
 }
 
 export class TestRunDto {

@@ -256,6 +256,7 @@ export class IdeService {
     instruction: string,
     originalCode: string,
     language?: string,
+    systemContext?: any,
   ): Promise<any> {
     const MAX_RETRIES = 3;
     const MIN_TRUST_THRESHOLD = 0.75;
@@ -263,11 +264,21 @@ export class IdeService {
     try {
       const fileExt = path.extname(filePath).substring(1) || language || 'typescript';
       
+      // CRITICAL: Use state-aware prompt if provided
+      const identityOverride = systemContext?.identity || 'MIN Autonomous Engine';
+      const statePrompt = systemContext?.statePrompt || '';
+      
       this.logger.log('🚀 ===== MIN AUTONOMOUS CODE EDIT (NOT DIRECT CLAUDE!) =====');
+      this.logger.log(`   Identity: ${identityOverride}`);
       this.logger.log(`   File: ${filePath}`);
       this.logger.log(`   Instruction: "${instruction.substring(0, 50)}..."`);
       this.logger.log(`   Routing through: 5-model committee + Grok-4.1 + Truth Mycelium`);
       this.logger.log(`   Jazz Guardrail: Auto-retry if τ < ${MIN_TRUST_THRESHOLD}`);
+      if (systemContext) {
+        this.logger.log(`   Regulation Mode: ${systemContext.regulationMode}`);
+        this.logger.log(`   Memory Enabled: ${systemContext.memoryEnabled}`);
+        this.logger.log(`   Active Goals: ${systemContext.activeGoals?.length || 0}`);
+      }
 
       let result: any;
       let attempt = 0;
@@ -282,12 +293,13 @@ export class IdeService {
           await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt - 2) * 1000));
         }
 
-        // Call autonomous engine
+        // Call autonomous engine with state awareness
         result = await this.vcttEngine.processCodeEdit(
           filePath,
           originalCode,
           instruction,
           fileExt,
+          statePrompt, // Inject state-aware identity override
         );
 
         if (!result || !result.success) {

@@ -1042,18 +1042,25 @@ Use your advanced reasoning to deeply analyze the transformation quality.`;
     originalCode: string,
     instruction: string,
     language?: string,
+    statePrompt?: string,
   ): Promise<any> {
     this.logger.log('🎨 ===== MIN AUTONOMOUS CODE EDIT (5-model + Grok-4.1 + Truth Mycelium) =====');
     this.logger.log(`   File: ${filePath}`);
     this.logger.log(`   Instruction: "${instruction.substring(0, 80)}..."`);
     this.logger.log(`   Language: ${language || 'auto-detect'}`);
+    if (statePrompt) {
+      this.logger.log('   🧠 State-aware prompt ACTIVE - MIN DeepAgent identity override engaged');
+    }
     
     // Create a synthetic session for the code edit
     const sessionId = `code_edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     // Format the code edit as a conversation for the autonomous pipeline
     // Enhanced with jazz team's top 5 best practices
-    const codeEditQuery = `You are an expert code editor powered by MIN's autonomous reasoning engine. Transform the following ${language || 'code'} according to the instruction.
+    // CRITICAL: If statePrompt provided, use it to override VCTT identity
+    const identityPrompt = statePrompt || `You are an expert code editor powered by MIN's autonomous reasoning engine. Transform the following ${language || 'code'} according to the instruction.`;
+    
+    const codeEditQuery = `${identityPrompt}
 
 FILE: ${filePath}
 LANGUAGE: ${language || 'auto-detect'}
