@@ -18,7 +18,7 @@ export class EvaluationService {
       `Creating evaluation: ${dto.evaluationType} for context ${dto.contextId} | Score: ${dto.score}`,
     );
 
-    const evaluation = await this.prisma.evaluation.create({
+    const evaluation = await this.prisma.evaluations.create({
       data: {
         contextId: dto.contextId,
         evaluationType: dto.evaluationType,
@@ -32,7 +32,7 @@ export class EvaluationService {
     });
 
     // Log to autonomy audit
-    await this.prisma.autonomyAudit.create({
+    await this.prisma.autonomy_audit.create({
       data: {
         eventType: 'EVALUATION',
         actorType: 'SYSTEM',
@@ -63,7 +63,7 @@ export class EvaluationService {
   }) {
     const { contextId, evaluationType, minScore, maxScore, limit = 100 } = filters || {};
 
-    return this.prisma.evaluation.findMany({
+    return this.prisma.evaluations.findMany({
       where: {
         ...(contextId && { contextId }),
         ...(evaluationType && { evaluationType }),
@@ -84,7 +84,7 @@ export class EvaluationService {
     );
 
     // Verify evaluation exists
-    const evaluation = await this.prisma.evaluation.findUnique({
+    const evaluation = await this.prisma.evaluations.findUnique({
       where: { id: dto.evaluationId },
     });
 
@@ -92,7 +92,7 @@ export class EvaluationService {
       throw new NotFoundException(`Evaluation ${dto.evaluationId} not found`);
     }
 
-    const proposal = await this.prisma.coachProposal.create({
+    const proposal = await this.prisma.coach_proposals.create({
       data: {
         evaluationId: dto.evaluationId,
         improvementArea: dto.improvementArea,
@@ -107,7 +107,7 @@ export class EvaluationService {
     });
 
     // Log to autonomy audit
-    await this.prisma.autonomyAudit.create({
+    await this.prisma.autonomy_audit.create({
       data: {
         eventType: 'COACH_PROPOSAL',
         actorType: 'AGENT',
@@ -137,7 +137,7 @@ export class EvaluationService {
   }) {
     const { status, improvementArea, priority, limit = 100 } = filters || {};
 
-    return this.prisma.coachProposal.findMany({
+    return this.prisma.coach_proposals.findMany({
       where: {
         ...(status && { status }),
         ...(improvementArea && { improvementArea }),
@@ -157,7 +157,7 @@ export class EvaluationService {
   async reviewProposal(proposalId: string, decision: string, humanFeedback?: string) {
     this.logger.log(`Reviewing proposal ${proposalId}: ${decision}`);
 
-    const proposal = await this.prisma.coachProposal.findUnique({
+    const proposal = await this.prisma.coach_proposals.findUnique({
       where: { id: proposalId },
     });
 
@@ -165,7 +165,7 @@ export class EvaluationService {
       throw new NotFoundException(`Proposal ${proposalId} not found`);
     }
 
-    const updatedProposal = await this.prisma.coachProposal.update({
+    const updatedProposal = await this.prisma.coach_proposals.update({
       where: { id: proposalId },
       data: {
         status: decision,
@@ -175,7 +175,7 @@ export class EvaluationService {
     });
 
     // Log to autonomy audit
-    await this.prisma.autonomyAudit.create({
+    await this.prisma.autonomy_audit.create({
       data: {
         eventType: 'PROPOSAL_REVIEW',
         actorType: 'HUMAN',
@@ -205,7 +205,7 @@ export class EvaluationService {
     try {
       // Get recent evaluations (last 24 hours)
       const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const recentEvaluations = await this.prisma.evaluation.findMany({
+      const recentEvaluations = await this.prisma.evaluations.findMany({
         where: {
           timestamp: {
             gte: yesterday,
@@ -225,7 +225,7 @@ export class EvaluationService {
       // Create improvement proposals for each low-scoring area
       for (const evaluation of lowScoreEvaluations) {
         // Check if we already have a pending proposal for this evaluation
-        const existingProposal = await this.prisma.coachProposal.findFirst({
+        const existingProposal = await this.prisma.coach_proposals.findFirst({
           where: {
             evaluationId: evaluation.id,
             status: 'PENDING_REVIEW',
@@ -264,7 +264,7 @@ export class EvaluationService {
       );
 
       // Log to autonomy audit
-      await this.prisma.autonomyAudit.create({
+      await this.prisma.autonomy_audit.create({
         data: {
           eventType: 'NIGHTLY_COACH',
           actorType: 'SYSTEM',
@@ -284,7 +284,7 @@ export class EvaluationService {
       this.logger.error(`Nightly coach process failed: ${error.message}`, error.stack);
 
       // Log error to autonomy audit
-      await this.prisma.autonomyAudit.create({
+      await this.prisma.autonomy_audit.create({
         data: {
           eventType: 'NIGHTLY_COACH',
           actorType: 'SYSTEM',

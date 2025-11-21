@@ -6,7 +6,12 @@ export class CreateSkillDto {
   @ApiProperty({ description: 'Skill name', example: 'DEBUG_TYPESCRIPT_ERROR' })
   @IsString()
   @IsNotEmpty()
-  name: string;
+  skill_name: string;
+
+  @ApiProperty({ description: 'Skill title' })
+  @IsString()
+  @IsNotEmpty()
+  title: string;
 
   @ApiProperty({ description: 'Human-readable description of what the skill does' })
   @IsString()
@@ -18,34 +23,35 @@ export class CreateSkillDto {
   @IsNotEmpty()
   category: string;
 
-  @ApiProperty({ description: 'Tags for searchability', type: [String] })
+  @ApiProperty({ description: 'Use cases for the skill', type: [String] })
   @IsArray()
   @IsString({ each: true })
-  tags: string[];
+  use_cases: string[];
 
-  @ApiProperty({ description: 'Input schema for the skill', type: Object })
-  @IsObject()
-  inputSchema: Record<string, any>;
+  @ApiProperty({ description: 'Prompt template for the skill' })
+  @IsString()
+  @IsNotEmpty()
+  prompt_template: string;
 
-  @ApiProperty({ description: 'Step-by-step pattern', type: Object })
-  @IsObject()
-  pattern: Record<string, any>;
+  @ApiProperty({ description: 'Required context fields', type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  required_context: string[];
 
-  @ApiProperty({ description: 'Expected outcomes and success criteria', type: Object })
-  @IsObject()
-  expectedOutcome: Record<string, any>;
+  @ApiProperty({ description: 'Required tools', type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  required_tools: string[];
 
-  @ApiProperty({ description: 'Success rate (0-100)', required: false })
-  @IsNumber()
-  @Min(0)
-  @Max(100)
+  @ApiProperty({ description: 'Approved by', required: false, default: 'system' })
+  @IsString()
   @IsOptional()
-  successRate?: number;
+  approved_by?: string;
 
-  @ApiProperty({ description: 'Number of successful uses', required: false })
-  @IsNumber()
+  @ApiProperty({ description: 'Skill version', required: false, default: '1.0.0' })
+  @IsString()
   @IsOptional()
-  usageCount?: number;
+  skill_version?: string;
 }
 
 export class UpdateSkillDto {
@@ -54,22 +60,27 @@ export class UpdateSkillDto {
   @IsOptional()
   description?: string;
 
-  @ApiProperty({ description: 'Updated pattern', required: false, type: Object })
-  @IsObject()
+  @ApiProperty({ description: 'Updated prompt template', required: false })
+  @IsString()
   @IsOptional()
-  pattern?: Record<string, any>;
+  prompt_template?: string;
 
   @ApiProperty({ description: 'Updated success rate', required: false })
   @IsNumber()
   @Min(0)
   @Max(100)
   @IsOptional()
-  successRate?: number;
+  success_rate?: number;
 
-  @ApiProperty({ description: 'Increment usage count', required: false })
-  @IsNumber()
+  @ApiProperty({ description: 'Status', required: false })
+  @IsString()
   @IsOptional()
-  incrementUsage?: number;
+  status?: string;
+
+  @ApiProperty({ description: 'Refinement notes', required: false })
+  @IsString()
+  @IsOptional()
+  refinement_notes?: string;
 }
 
 export class SearchSkillsDto {
@@ -83,11 +94,10 @@ export class SearchSkillsDto {
   @IsOptional()
   category?: string;
 
-  @ApiProperty({ description: 'Filter by tags', required: false, type: [String] })
-  @IsArray()
-  @IsString({ each: true })
+  @ApiProperty({ description: 'Filter by status', required: false })
+  @IsString()
   @IsOptional()
-  tags?: string[];
+  status?: string;
 
   @ApiProperty({ description: 'Minimum success rate', required: false })
   @IsNumber()

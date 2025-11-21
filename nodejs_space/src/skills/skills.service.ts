@@ -13,38 +13,38 @@ export class SkillsService {
    * Create a new skill
    */
   async createSkill(dto: CreateSkillDto, createdBy: string = 'system') {
-    this.logger.log(`Creating new skill: ${dto.name} in category ${dto.category}`);
+    this.logger.log(`Creating new skill: ${dto.skill_name} in category ${dto.category}`);
 
     const skill = await this.prisma.skills.create({
       data: {
-        name: dto.name,
-        description: dto.description,
+        skill_name: dto.skill_name,
+        skill_version: dto.skill_version || '1.0.0',
         category: dto.category,
-        tags: dto.tags,
-        inputSchema: dto.inputSchema as any,
-        pattern: dto.pattern as any,
-        expectedOutcome: dto.expectedOutcome as any,
-        successRate: dto.successRate || 0,
-        usageCount: dto.usageCount || 0,
-        createdBy,
-        lastUsed: null,
-        metadata: {},
+        title: dto.title,
+        description: dto.description,
+        use_cases: dto.use_cases,
+        prompt_template: dto.prompt_template,
+        required_context: dto.required_context,
+        required_tools: dto.required_tools,
+        usage_count: 0,
+        status: 'active',
+        approved_by: dto.approved_by || createdBy,
+        approved_at: new Date(),
       },
     });
 
     // Log to autonomy audit
-    await this.prisma.autonomyAudit.create({
+    await this.prisma.autonomy_audit.create({
       data: {
         eventType: 'SKILL_CREATION',
         actorType: 'SYSTEM',
         actorId: createdBy,
         action: `CREATE_SKILL_${dto.category}`,
-        targetResource: skill.id,
+        targetResource: skill.id.toString(),
         outcome: 'SUCCESS',
         metadata: {
-          skillName: dto.name,
+          skillName: dto.skill_name,
           category: dto.category,
-          tags: dto.tags,
         } as any,
         timestamp: new Date(),
       },
@@ -58,19 +58,19 @@ export class SkillsService {
    */
   async getAllSkills(filters?: {
     category?: string;
-    tags?: string[];
+    status?: string;
     minSuccessRate?: number;
     limit?: number;
   }) {
-    const { category, tags, minSuccessRate, limit = 100 } = filters || {};
+    const { category, status, minSuccessRate, limit = 100 } = filters || {};
 
     return this.prisma.skills.findMany({
       where: {
         ...(category && { category }),
-        ...(tags && tags.length > 0 && { tags: { hasSome: tags } }),
-        ...(minSuccessRate !== undefined && { successRate: { gte: minSuccessRate } }),
+        ...(status && { status }),
+        ...(minSuccessRate !== undefined && { success_rate: { gte: minSuccessRate } }),
       },
-      orderBy: [{ successRate: 'desc' }, { usageCount: 'desc' }],
+      orderBy: [{ success_rate: 'desc' }, { usage_count: 'desc' }],
       take: limit,
     });
   }
@@ -78,7 +78,7 @@ export class SkillsService {
   /**
    * Get skill by ID
    */
-  async getSkillById(id: string) {
+  async getSkillById(id: number) {
     const skill = await this.prisma.skills.findUnique({
       where: { id },
     });
@@ -95,31 +95,31 @@ export class SkillsService {
    */
   async searchSkills(query: string, filters?: {
     category?: string;
-    tags?: string[];
+    status?: string;
     minSuccessRate?: number;
     limit?: number;
   }) {
-    const { category, tags, minSuccessRate, limit = 20 } = filters || {};
+    const { category, status, minSuccessRate, limit = 20 } = filters || {};
 
     this.logger.log(`Searching skills: "${query}"`);
 
     // Simple text search on name and description
-    // In production, use full-text search or vector embeddings
     const skills = await this.prisma.skills.findMany({
       where: {
         AND: [
           {
             OR: [
-              { name: { contains: query, mode: 'insensitive' } },
+              { skill_name: { contains: query, mode: 'insensitive' } },
+              { title: { contains: query, mode: 'insensitive' } },
               { description: { contains: query, mode: 'insensitive' } },
             ],
           },
           ...(category ? [{ category }] : []),
-          ...(tags && tags.length > 0 ? [{ tags: { hasSome: tags } }] : []),
-          ...(minSuccessRate !== undefined ? [{ successRate: { gte: minSuccessRate } }] : []),
+          ...(status ? [{ status }] : []),
+          ...(minSuccessRate !== undefined ? [{ success_rate: { gte: minSuccessRate } }] : []),
         ],
       },
-      orderBy: [{ successRate: 'desc' }, { usageCount: 'desc' }],
+      orderBy: [{ success_rate: 'desc' }, { usage_count: 'desc' }],
       take: limit,
     });
 
@@ -129,7 +129,7 @@ export class SkillsService {
   /**
    * Update skill
    */
-  async updateSkill(id: string, dto: UpdateSkillDto) {
+  async updateSkill(id: number, dto: UpdateSkillDto) {
     this.logger.log(`Updating skill: ${id}`);
 
     const skill = await this.prisma.skills.findUnique({
@@ -144,10 +144,11 @@ export class SkillsService {
       where: { id },
       data: {
         ...(dto.description && { description: dto.description }),
-        ...(dto.pattern && { pattern: dto.pattern as any }),
-        ...(dto.successRate !== undefined && { successRate: dto.successRate }),
-        ...(dto.incrementUsage && { usageCount: { increment: dto.incrementUsage } }),
-        lastUsed: new Date(),
+        ...(dto.prompt_template && { prompt_template: dto.prompt_template }),
+        ...(dto.success_rate !== undefined && { success_rate: dto.success_rate }),
+        ...(dto.status && { status: dto.status }),
+        ...(dto.refinement_notes && { refinement_notes: dto.refinement_notes }),
+        last_refined_at: new Date(),
       },
     });
 
@@ -157,7 +158,7 @@ export class SkillsService {
   /**
    * Record skill usage
    */
-  async recordSkillUsage(id: string, success: boolean) {
+  async recordSkillUsage(id: number, success: boolean) {
     this.logger.log(`Recording skill usage: ${id} | Success: ${success}`);
 
     const skill = await this.prisma.skills.findUnique({
@@ -169,31 +170,32 @@ export class SkillsService {
     }
 
     // Update usage count and recalculate success rate
-    const newUsageCount = skill.usageCount + 1;
-    const successfulUses = Math.round((skill.successRate / 100) * skill.usageCount);
+    const newUsageCount = skill.usage_count + 1;
+    const currentRate = skill.success_rate || 0;
+    const successfulUses = Math.round((currentRate / 100) * skill.usage_count);
     const newSuccessfulUses = successfulUses + (success ? 1 : 0);
     const newSuccessRate = (newSuccessfulUses / newUsageCount) * 100;
 
     const updatedSkill = await this.prisma.skills.update({
       where: { id },
       data: {
-        usageCount: newUsageCount,
-        successRate: newSuccessRate,
-        lastUsed: new Date(),
+        usage_count: newUsageCount,
+        success_rate: newSuccessRate,
+        last_refined_at: new Date(),
       },
     });
 
     // Log to autonomy audit
-    await this.prisma.autonomyAudit.create({
+    await this.prisma.autonomy_audit.create({
       data: {
         eventType: 'SKILL_USAGE',
         actorType: 'SYSTEM',
         actorId: 'skill_tracker',
         action: success ? 'SKILL_SUCCESS' : 'SKILL_FAILURE',
-        targetResource: id,
+        targetResource: id.toString(),
         outcome: success ? 'SUCCESS' : 'FAILED',
         metadata: {
-          skillName: skill.name,
+          skillName: skill.skill_name,
           newSuccessRate: newSuccessRate.toFixed(1),
           usageCount: newUsageCount,
         } as any,
@@ -206,12 +208,10 @@ export class SkillsService {
 
   /**
    * Get skill recommendations for a given context
-   * This integrates with the planner to suggest relevant skills
    */
   async getSkillRecommendations(context: {
     task: string;
     category?: string;
-    tags?: string[];
     minSuccessRate?: number;
   }) {
     this.logger.log(`Getting skill recommendations for: ${context.task}`);
@@ -219,57 +219,12 @@ export class SkillsService {
     // Search for relevant skills
     const skills = await this.searchSkills(context.task, {
       category: context.category,
-      tags: context.tags,
+      status: 'active',
       minSuccessRate: context.minSuccessRate || 50,
       limit: 10,
     });
 
-    // Sort by success rate and usage count
-    const recommendations = skills
-      .map((skill) => ({
-        skill,
-        relevanceScore: this.calculateRelevanceScore(skill, context.task),
-      }))
-      .sort((a, b) => b.relevanceScore - a.relevanceScore)
-      .slice(0, 5)
-      .map((r) => r.skill);
-
-    return recommendations;
-  }
-
-  /**
-   * Calculate relevance score for a skill given a task
-   */
-  private calculateRelevanceScore(skill: any, task: string): number {
-    let score = 0;
-
-    // Base score from success rate
-    score += skill.successRate * 0.5;
-
-    // Boost from usage count (up to 20 points)
-    score += Math.min(skill.usageCount * 2, 20);
-
-    // Text similarity bonus (simple substring matching)
-    const taskLower = task.toLowerCase();
-    const nameLower = skill.name.toLowerCase();
-    const descLower = skill.description.toLowerCase();
-
-    if (nameLower.includes(taskLower) || taskLower.includes(nameLower)) {
-      score += 30;
-    }
-
-    if (descLower.includes(taskLower)) {
-      score += 15;
-    }
-
-    // Tag matching bonus
-    const taskWords = taskLower.split(/\s+/);
-    const matchingTags = skill.tags.filter((tag: string) =>
-      taskWords.some((word) => tag.toLowerCase().includes(word)),
-    );
-    score += matchingTags.length * 5;
-
-    return score;
+    return skills.slice(0, 5);
   }
 
   /**
@@ -289,19 +244,22 @@ export class SkillsService {
    */
   async getStatistics() {
     const totalSkills = await this.prisma.skills.count();
-    const skills = await this.prisma.skills.findMany();
+    const skills = await this.prisma.skills.findMany({
+      where: { status: 'active' },
+    });
 
     const avgSuccessRate =
-      skills.reduce((sum, s) => sum + s.successRate, 0) / totalSkills || 0;
-    const totalUsages = skills.reduce((sum, s) => sum + s.usageCount, 0);
+      skills.reduce((sum, s) => sum + (s.success_rate || 0), 0) / (totalSkills || 1);
+    const totalUsages = skills.reduce((sum, s) => sum + s.usage_count, 0);
 
     const topSkills = skills
-      .sort((a, b) => b.successRate - a.successRate)
+      .sort((a, b) => (b.success_rate || 0) - (a.success_rate || 0))
       .slice(0, 10)
       .map((s) => ({
-        name: s.name,
-        successRate: s.successRate,
-        usageCount: s.usageCount,
+        name: s.skill_name,
+        title: s.title,
+        successRate: s.success_rate,
+        usageCount: s.usage_count,
       }));
 
     return {

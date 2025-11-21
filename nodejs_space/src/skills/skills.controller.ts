@@ -17,7 +17,7 @@ export class SkillsController {
     description: 'Add a new proven pattern to the skill library',
   })
   async createSkill(@Body() dto: CreateSkillDto, @Query('createdBy') createdBy?: string) {
-    this.logger.log(`Creating skill: ${dto.name}`);
+    this.logger.log(`Creating skill: ${dto.skill_name}`);
     return this.skillsService.createSkill(dto, createdBy || 'system');
   }
 
@@ -27,20 +27,18 @@ export class SkillsController {
     description: 'Retrieve all skills with optional filters',
   })
   @ApiQuery({ name: 'category', required: false })
-  @ApiQuery({ name: 'tags', required: false, type: [String] })
+  @ApiQuery({ name: 'status', required: false })
   @ApiQuery({ name: 'minSuccessRate', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   async getAllSkills(
     @Query('category') category?: string,
-    @Query('tags') tags?: string | string[],
+    @Query('status') status?: string,
     @Query('minSuccessRate') minSuccessRate?: string,
     @Query('limit') limit?: string,
   ) {
-    const tagsArray = Array.isArray(tags) ? tags : tags ? [tags] : undefined;
-
     return this.skillsService.getAllSkills({
       category,
-      tags: tagsArray,
+      status,
       minSuccessRate: minSuccessRate ? parseFloat(minSuccessRate) : undefined,
       limit: limit ? parseInt(limit) : 100,
     });
@@ -53,21 +51,19 @@ export class SkillsController {
   })
   @ApiQuery({ name: 'q', required: true, description: 'Search query' })
   @ApiQuery({ name: 'category', required: false })
-  @ApiQuery({ name: 'tags', required: false, type: [String] })
+  @ApiQuery({ name: 'status', required: false })
   @ApiQuery({ name: 'minSuccessRate', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   async searchSkills(
     @Query('q') query: string,
     @Query('category') category?: string,
-    @Query('tags') tags?: string | string[],
+    @Query('status') status?: string,
     @Query('minSuccessRate') minSuccessRate?: string,
     @Query('limit') limit?: string,
   ) {
-    const tagsArray = Array.isArray(tags) ? tags : tags ? [tags] : undefined;
-
     return this.skillsService.searchSkills(query, {
       category,
-      tags: tagsArray,
+      status,
       minSuccessRate: minSuccessRate ? parseFloat(minSuccessRate) : undefined,
       limit: limit ? parseInt(limit) : 20,
     });
@@ -80,20 +76,15 @@ export class SkillsController {
   })
   @ApiQuery({ name: 'task', required: true })
   @ApiQuery({ name: 'category', required: false })
-  @ApiQuery({ name: 'tags', required: false, type: [String] })
   @ApiQuery({ name: 'minSuccessRate', required: false, type: Number })
   async getRecommendations(
     @Query('task') task: string,
     @Query('category') category?: string,
-    @Query('tags') tags?: string | string[],
     @Query('minSuccessRate') minSuccessRate?: string,
   ) {
-    const tagsArray = Array.isArray(tags) ? tags : tags ? [tags] : undefined;
-
     return this.skillsService.getSkillRecommendations({
       task,
       category,
-      tags: tagsArray,
       minSuccessRate: minSuccessRate ? parseFloat(minSuccessRate) : undefined,
     });
   }
@@ -122,7 +113,7 @@ export class SkillsController {
     description: 'Retrieve a specific skill by its ID',
   })
   async getSkillById(@Param('id') id: string) {
-    return this.skillsService.getSkillById(id);
+    return this.skillsService.getSkillById(parseInt(id));
   }
 
   @Patch(':id')
@@ -132,7 +123,7 @@ export class SkillsController {
   })
   async updateSkill(@Param('id') id: string, @Body() dto: UpdateSkillDto) {
     this.logger.log(`Updating skill: ${id}`);
-    return this.skillsService.updateSkill(id, dto);
+    return this.skillsService.updateSkill(parseInt(id), dto);
   }
 
   @Post(':id/usage')
@@ -142,6 +133,6 @@ export class SkillsController {
   })
   async recordUsage(@Param('id') id: string, @Query('success') success: string) {
     this.logger.log(`Recording usage for skill: ${id} | Success: ${success}`);
-    return this.skillsService.recordSkillUsage(id, success === 'true');
+    return this.skillsService.recordSkillUsage(parseInt(id), success === 'true');
   }
 }

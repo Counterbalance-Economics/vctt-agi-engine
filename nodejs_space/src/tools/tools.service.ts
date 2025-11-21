@@ -28,7 +28,7 @@ export class ToolsService {
    * Get all registered tools from the database
    */
   async getRegisteredTools(): Promise<ToolDefinition[]> {
-    const tools = await this.prisma.toolRegistry.findMany();
+    const tools = await this.prisma.tool_registry.findMany();
     return tools.map((t) => ({
       name: t.name as ToolName,
       description: t.description,
@@ -55,7 +55,7 @@ export class ToolsService {
 
     try {
       // 1. Verify tool is registered
-      const toolDef = await this.prisma.toolRegistry.findUnique({
+      const toolDef = await this.prisma.tool_registry.findUnique({
         where: { name: dto.tool },
       });
 
@@ -111,7 +111,7 @@ export class ToolsService {
       const executionTimeMs = Date.now() - startTime;
 
       // 4. Audit log to database
-      await this.prisma.toolInvocation.create({
+      await this.prisma.tool_invocations.create({
         data: {
           invocationId,
           toolName: dto.tool,
@@ -129,7 +129,7 @@ export class ToolsService {
       });
 
       // 5. Also log to autonomy audit
-      await this.prisma.autonomyAudit.create({
+      await this.prisma.autonomy_audit.create({
         data: {
           eventType: 'TOOL_INVOCATION',
           actorType: 'USER',
@@ -164,7 +164,7 @@ export class ToolsService {
       this.logger.error(`[TOOL ERROR] ${invocationId} | ${error.message}`, error.stack);
 
       // Log failed invocation
-      await this.prisma.toolInvocation.create({
+      await this.prisma.tool_invocations.create({
         data: {
           invocationId,
           toolName: dto.tool,
@@ -196,7 +196,7 @@ export class ToolsService {
   }) {
     const { userId, toolName, status, limit = 100 } = filters || {};
 
-    return this.prisma.toolInvocation.findMany({
+    return this.prisma.tool_invocations.findMany({
       where: {
         ...(userId && { userId }),
         ...(toolName && { toolName }),
@@ -352,7 +352,7 @@ export class ToolsService {
 
   private async scheduleTask(input: any, userId: string): Promise<any> {
     // Delegate to scheduler service
-    const task = await this.prisma.scheduledTask.create({
+    const task = await this.prisma.scheduled_tasks.create({
       data: {
         taskType: input.taskType || 'DEFERRED',
         goalId: input.goalId || null,
