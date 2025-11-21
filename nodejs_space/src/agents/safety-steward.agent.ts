@@ -58,6 +58,8 @@ export class SafetyStewardAgent {
   
   private currentMode: OperationMode = OperationMode.RESEARCH;
   private killSwitchActive: boolean = false;
+  private killSwitchActivatedAt?: Date;
+  private killSwitchReason?: string;
   private auditLog: AuditLogEntry[] = [];
   private anomalyCount: number = 0;
   private readonly ANOMALY_THRESHOLD = 5;
@@ -359,6 +361,8 @@ export class SafetyStewardAgent {
    */
   async activateKillSwitch(reason: string, adminId?: string): Promise<void> {
     this.killSwitchActive = true;
+    this.killSwitchActivatedAt = new Date();
+    this.killSwitchReason = reason;
     this.currentMode = OperationMode.EMERGENCY;
     
     this.logger.error(`🚨 KILL SWITCH ACTIVATED by ${adminId || 'system'}: ${reason}`);
@@ -382,6 +386,8 @@ export class SafetyStewardAgent {
    */
   async deactivateKillSwitch(adminId: string, reason: string): Promise<void> {
     this.killSwitchActive = false;
+    this.killSwitchActivatedAt = undefined;
+    this.killSwitchReason = undefined;
     this.currentMode = OperationMode.RESEARCH; // Safe default
     this.anomalyCount = 0; // Reset anomaly counter
     
@@ -430,6 +436,24 @@ export class SafetyStewardAgent {
       killSwitchActive: this.killSwitchActive,
       anomalyCount: this.anomalyCount,
       recentAuditLogs: this.auditLog.slice(-50) // Last 50 entries
+    };
+  }
+
+  /**
+   * Get current operation mode
+   */
+  getMode(): OperationMode {
+    return this.currentMode;
+  }
+
+  /**
+   * Get kill switch status
+   */
+  getKillSwitchStatus(): { isActive: boolean; activatedAt?: Date; reason?: string } {
+    return {
+      isActive: this.killSwitchActive,
+      activatedAt: this.killSwitchActivatedAt,
+      reason: this.killSwitchReason,
     };
   }
 

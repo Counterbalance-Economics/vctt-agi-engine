@@ -1,155 +1,273 @@
-
-// This is your Prisma schema file for VCTT-AGI Memory System
-// Learn more: https://pris.ly/d/prisma-schema
-
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [uuid_ossp(map: "uuid-ossp", schema: "public")]
 }
 
-// User Memory Storage - Main memory table
 model user_memory {
-  id           String   @id @default(uuid())
-  user_id      String   @db.VarChar(255)
-  session_id   String?  @db.VarChar(255)
-  memory_type  String   @db.VarChar(50) // 'conversation', 'learned_fact', 'preference'
-  content      String   @db.Text
-  embedding    Json? // Stored as JSON array for semantic search (Float[])
-  metadata     Json?    @db.JsonB
-  vctt_score   Decimal? @db.Decimal(5, 2) // VCTT trust metric
-  created_at   DateTime @default(now()) @db.Timestamp(6)
-  updated_at   DateTime @updatedAt @db.Timestamp(6)
-  expires_at   DateTime? @db.Timestamp(6)
-  
-  @@index([user_id], name: "idx_user_id")
-  @@index([session_id], name: "idx_session_id")
-  @@index([created_at], name: "idx_created_at")
+  id          String    @id @default(uuid())
+  user_id     String    @db.VarChar(255)
+  session_id  String?   @db.VarChar(255)
+  memory_type String    @db.VarChar(50)
+  content     String
+  embedding   Json?
+  metadata    Json?
+  vctt_score  Decimal?  @db.Decimal(5, 2)
+  created_at  DateTime  @default(now()) @db.Timestamp(6)
+  updated_at  DateTime  @updatedAt @db.Timestamp(6)
+  expires_at  DateTime? @db.Timestamp(6)
+
+  @@index([user_id], map: "idx_user_id")
+  @@index([session_id], map: "idx_session_id")
+  @@index([created_at], map: "idx_created_at")
   @@map("user_memory")
 }
 
-// Memory Consent Management
 model memory_consent {
-  id               String   @id @default(uuid())
-  user_id          String   @unique @db.VarChar(255)
-  consent_given    Boolean  @default(false)
-  consent_date     DateTime? @db.Timestamp(6)
-  consent_version  String?  @db.VarChar(20)
-  preferences      Json?    @db.JsonB // Fine-grained consent settings
-  created_at       DateTime @default(now()) @db.Timestamp(6)
-  updated_at       DateTime @updatedAt @db.Timestamp(6)
-  
+  id              String    @id @default(uuid())
+  user_id         String    @unique @db.VarChar(255)
+  consent_given   Boolean   @default(false)
+  consent_date    DateTime? @db.Timestamp(6)
+  consent_version String?   @db.VarChar(20)
+  preferences     Json?
+  created_at      DateTime  @default(now()) @db.Timestamp(6)
+  updated_at      DateTime  @updatedAt @db.Timestamp(6)
+
   @@map("memory_consent")
 }
 
-// Memory Audit Trail
 model memory_audit {
-  id                  String   @id @default(uuid())
-  user_id             String   @db.VarChar(255)
-  operation           String   @db.VarChar(50) // 'CREATE', 'READ', 'UPDATE', 'DELETE', 'EXPORT'
-  memory_id           String?  @db.VarChar(255)
-  reason              String?  @db.Text
-  vctt_verification   Boolean  @default(false)
-  timestamp           DateTime @default(now()) @db.Timestamp(6)
-  metadata            Json?    @db.JsonB
-  
-  @@index([user_id], name: "idx_audit_user_id")
-  @@index([timestamp], name: "idx_audit_timestamp")
+  id                String   @id @default(uuid())
+  user_id           String   @db.VarChar(255)
+  operation         String   @db.VarChar(50)
+  memory_id         String?  @db.VarChar(255)
+  reason            String?
+  vctt_verification Boolean  @default(false)
+  timestamp         DateTime @default(now()) @db.Timestamp(6)
+  metadata          Json?
+
+  @@index([user_id], map: "idx_audit_user_id")
+  @@index([timestamp], map: "idx_audit_timestamp")
   @@map("memory_audit")
 }
 
-// ============================================
-// STAGE 2: KNOWLEDGE GRAPH SCHEMA
-// ============================================
-
-// Entities (people, places, concepts, organizations, events)
 model kg_entity {
-  id                  String   @id @default(uuid())
-  user_id             String   @db.VarChar(255) // User who owns this knowledge
-  name                String   @db.VarChar(500) // Entity name
-  type                String   @db.VarChar(100) // person, place, organization, concept, event, etc.
-  description         String?  @db.Text // Description of entity
-  attributes          Json?    @db.JsonB // Flexible attributes (JSON)
-  embedding           Json?    // Semantic embedding (1536-dim vector)
-  vctt_score          Decimal  @db.Decimal(5, 2) // Trust metric for this entity
-  confidence          Decimal  @db.Decimal(5, 2) // Extraction confidence
-  first_mentioned     DateTime @default(now()) @db.Timestamp(6) // When first learned
-  last_updated        DateTime @updatedAt @db.Timestamp(6)
-  source_memory_id    String?  @db.VarChar(255) // Reference to memory that created this
-  
-  // Relationships
-  relationships_from  kg_relationship[] @relation("FromEntity")
-  relationships_to    kg_relationship[] @relation("ToEntity")
-  concept_mappings    kg_concept_mapping[]
-  
-  @@index([user_id], name: "idx_entity_user_id")
-  @@index([type], name: "idx_entity_type")
-  @@index([name], name: "idx_entity_name")
-  @@index([vctt_score], name: "idx_entity_vctt")
+  id                 String               @id @default(uuid())
+  user_id            String               @db.VarChar(255)
+  name               String               @db.VarChar(500)
+  type               String               @db.VarChar(100)
+  description        String?
+  attributes         Json?
+  embedding          Json?
+  vctt_score         Decimal              @db.Decimal(5, 2)
+  confidence         Decimal              @db.Decimal(5, 2)
+  first_mentioned    DateTime             @default(now()) @db.Timestamp(6)
+  last_updated       DateTime             @updatedAt @db.Timestamp(6)
+  source_memory_id   String?              @db.VarChar(255)
+  concept_mappings   kg_concept_mapping[]
+  relationships_from kg_relationship[]    @relation("FromEntity")
+  relationships_to   kg_relationship[]    @relation("ToEntity")
+
+  @@index([user_id], map: "idx_entity_user_id")
+  @@index([type], map: "idx_entity_type")
+  @@index([name], map: "idx_entity_name")
+  @@index([vctt_score], map: "idx_entity_vctt")
   @@map("kg_entity")
 }
 
-// Relationships between entities
 model kg_relationship {
-  id                  String   @id @default(uuid())
-  user_id             String   @db.VarChar(255) // User who owns this knowledge
-  from_entity_id      String   @db.VarChar(255)
-  to_entity_id        String   @db.VarChar(255)
-  relation_type       String   @db.VarChar(100) // works_for, located_in, part_of, related_to, etc.
-  properties          Json?    @db.JsonB // Additional properties
-  vctt_score          Decimal  @db.Decimal(5, 2) // Trust metric
-  confidence          Decimal  @db.Decimal(5, 2)
-  created_at          DateTime @default(now()) @db.Timestamp(6)
-  updated_at          DateTime @updatedAt @db.Timestamp(6)
-  source_memory_id    String?  @db.VarChar(255)
-  
-  from_entity         kg_entity @relation("FromEntity", fields: [from_entity_id], references: [id], onDelete: Cascade)
-  to_entity           kg_entity @relation("ToEntity", fields: [to_entity_id], references: [id], onDelete: Cascade)
-  
-  @@index([user_id], name: "idx_rel_user_id")
-  @@index([from_entity_id], name: "idx_rel_from")
-  @@index([to_entity_id], name: "idx_rel_to")
-  @@index([relation_type], name: "idx_rel_type")
+  id               String    @id @default(uuid())
+  user_id          String    @db.VarChar(255)
+  from_entity_id   String    @db.VarChar(255)
+  to_entity_id     String    @db.VarChar(255)
+  relation_type    String    @db.VarChar(100)
+  properties       Json?
+  vctt_score       Decimal   @db.Decimal(5, 2)
+  confidence       Decimal   @db.Decimal(5, 2)
+  created_at       DateTime  @default(now()) @db.Timestamp(6)
+  updated_at       DateTime  @updatedAt @db.Timestamp(6)
+  source_memory_id String?   @db.VarChar(255)
+  from_entity      kg_entity @relation("FromEntity", fields: [from_entity_id], references: [id], onDelete: Cascade)
+  to_entity        kg_entity @relation("ToEntity", fields: [to_entity_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id], map: "idx_rel_user_id")
+  @@index([from_entity_id], map: "idx_rel_from")
+  @@index([to_entity_id], map: "idx_rel_to")
+  @@index([relation_type], map: "idx_rel_type")
   @@map("kg_relationship")
 }
 
-// Concepts and taxonomies
 model kg_concept {
-  id                  String   @id @default(uuid())
-  name                String   @unique @db.VarChar(255)
-  description         String?  @db.Text
-  parent_id           String?  @db.VarChar(255) // For hierarchies (AGI -> AI -> Machine Learning)
-  level               Int      @default(0) // Depth in hierarchy
-  embedding           Json? // Semantic embedding
-  vctt_score          Decimal  @db.Decimal(5, 2)
-  created_at          DateTime @default(now()) @db.Timestamp(6)
-  updated_at          DateTime @updatedAt @db.Timestamp(6)
-  
-  parent              kg_concept?  @relation("ConceptHierarchy", fields: [parent_id], references: [id], onDelete: SetNull)
-  children            kg_concept[] @relation("ConceptHierarchy")
-  entity_mappings     kg_concept_mapping[]
-  
-  @@index([parent_id], name: "idx_concept_parent")
-  @@index([name], name: "idx_concept_name")
+  id              String               @id @default(uuid())
+  name            String               @unique @db.VarChar(255)
+  description     String?
+  parent_id       String?              @db.VarChar(255)
+  level           Int                  @default(0)
+  embedding       Json?
+  vctt_score      Decimal              @db.Decimal(5, 2)
+  created_at      DateTime             @default(now()) @db.Timestamp(6)
+  updated_at      DateTime             @updatedAt @db.Timestamp(6)
+  parent          kg_concept?          @relation("ConceptHierarchy", fields: [parent_id], references: [id])
+  children        kg_concept[]         @relation("ConceptHierarchy")
+  entity_mappings kg_concept_mapping[]
+
+  @@index([parent_id], map: "idx_concept_parent")
+  @@index([name], map: "idx_concept_name")
   @@map("kg_concept")
 }
 
-// Mapping between entities and concepts
 model kg_concept_mapping {
-  id                  String   @id @default(uuid())
-  entity_id           String   @db.VarChar(255)
-  concept_id          String   @db.VarChar(255)
-  relevance           Decimal  @db.Decimal(5, 2) // How relevant is this concept to this entity
-  
-  entity              kg_entity  @relation(fields: [entity_id], references: [id], onDelete: Cascade)
-  concept             kg_concept @relation(fields: [concept_id], references: [id], onDelete: Cascade)
-  
+  id         String     @id @default(uuid())
+  entity_id  String     @db.VarChar(255)
+  concept_id String     @db.VarChar(255)
+  relevance  Decimal    @db.Decimal(5, 2)
+  concept    kg_concept @relation(fields: [concept_id], references: [id], onDelete: Cascade)
+  entity     kg_entity  @relation(fields: [entity_id], references: [id], onDelete: Cascade)
+
   @@unique([entity_id, concept_id])
-  @@index([entity_id], name: "idx_mapping_entity")
-  @@index([concept_id], name: "idx_mapping_concept")
+  @@index([entity_id], map: "idx_mapping_entity")
+  @@index([concept_id], map: "idx_mapping_concept")
   @@map("kg_concept_mapping")
+}
+
+model conversations {
+  id                String              @id(map: "PK_ee34f4f7ced4ec8681f26bf04ef") @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id           String              @db.VarChar
+  created_at        DateTime            @default(now()) @db.Timestamp(6)
+  llm_contributions llm_contributions[]
+  messages          messages[]
+}
+
+model internal_state {
+  session_id String   @id(map: "PK_0135e9060b31d4a0397441de11f") @db.VarChar
+  state      Json
+  updated_at DateTime @default(now()) @db.Timestamp(6)
+}
+
+model llm_contributions {
+  id            String        @id(map: "PK_5eba03517c944055c2b6f9a3341") @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  session_id    String        @db.Uuid
+  message_id    String?       @db.Uuid
+  model_name    String        @db.VarChar(50)
+  agent_name    String        @db.VarChar(50)
+  contributed   Boolean       @default(false)
+  offline       Boolean       @default(false)
+  error_type    String?       @db.VarChar(100)
+  tokens_used   Int           @default(0)
+  cost_usd      Decimal       @default(0) @db.Decimal(10, 6)
+  latency_ms    Int           @default(0)
+  timestamp     DateTime      @default(now()) @db.Timestamp(6)
+  messages      messages?     @relation(fields: [message_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_19148d557b8ae35424f44bf954b")
+  conversations conversations @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_ece56b059987dbca919f3af0e8f")
+}
+
+model messages {
+  id                String              @id(map: "PK_18325f38ae6de43878487eff986") @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  conversation_id   String              @db.Uuid
+  role              String              @db.VarChar
+  content           String
+  timestamp         DateTime            @default(now()) @db.Timestamp(6)
+  model             String?             @db.VarChar
+  tokens_input      Int?
+  tokens_output     Int?
+  tokens_total      Int?
+  cost_usd          Decimal?            @db.Decimal(10, 6)
+  latency_ms        Int?
+  llm_contributions llm_contributions[]
+  conversations     conversations       @relation(fields: [conversation_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_3bc55a7c3f9ed54b520bb5cfe23")
+}
+
+// ============================================
+// STAGE 3: GOAL SYSTEM SCHEMA
+// Self-aware goal tracking, hierarchy, and state management
+// ============================================
+
+// Goals Table (Core)
+model goals {
+  id                  Int         @id @default(autoincrement())
+  title               String      @db.VarChar(255)
+  description         String?     @db.Text
+  status              String      @default("proposed") @db.VarChar(50) // proposed, active, paused, completed, abandoned
+  priority            Int         @default(3) // 1 (lowest) to 5 (highest)
+  owner               String      @db.VarChar(100) // human, system, min
+  parent_goal_id      Int?
+  created_by          String      @db.VarChar(100)
+  created_at          DateTime    @default(now()) @db.Timestamp(6)
+  updated_at          DateTime    @updatedAt @db.Timestamp(6)
+  completed_at        DateTime?   @db.Timestamp(6)
+  metadata            Json?       @db.JsonB
+  
+  // Relations
+  parent_goal         goals?      @relation("GoalHierarchy", fields: [parent_goal_id], references: [id], onDelete: Cascade)
+  child_goals         goals[]     @relation("GoalHierarchy")
+  constraints         goal_constraints[]
+  progress_entries    goal_progress[]
+  audit_entries       goal_audit[]
+  
+  @@index([status], name: "idx_goals_status")
+  @@index([owner], name: "idx_goals_owner")
+  @@index([priority], name: "idx_goals_priority")
+  @@index([parent_goal_id], name: "idx_goals_parent")
+  @@map("goals")
+}
+
+// Goal Constraints Table
+model goal_constraints {
+  id                  Int         @id @default(autoincrement())
+  goal_id             Int
+  constraint_type     String      @db.VarChar(50) // dependency, resource, time, safety
+  constraint_value    String      @db.Text
+  is_blocking         Boolean     @default(false)
+  created_at          DateTime    @default(now()) @db.Timestamp(6)
+  metadata            Json?       @db.JsonB
+  
+  // Relations
+  goal                goals       @relation(fields: [goal_id], references: [id], onDelete: Cascade)
+  
+  @@index([goal_id], name: "idx_goal_constraints_goal")
+  @@map("goal_constraints")
+}
+
+// Goal Progress Table
+model goal_progress {
+  id                  Int         @id @default(autoincrement())
+  goal_id             Int
+  progress_percent    Int         @default(0) // 0-100
+  milestone           String?     @db.VarChar(255)
+  notes               String?     @db.Text
+  recorded_by         String      @db.VarChar(100)
+  recorded_at         DateTime    @default(now()) @db.Timestamp(6)
+  metadata            Json?       @db.JsonB
+  
+  // Relations
+  goal                goals       @relation(fields: [goal_id], references: [id], onDelete: Cascade)
+  
+  @@index([goal_id], name: "idx_goal_progress_goal")
+  @@map("goal_progress")
+}
+
+// Goal Audit Table (Full Transparency)
+model goal_audit {
+  id                  Int         @id @default(autoincrement())
+  goal_id             Int
+  action              String      @db.VarChar(50) // created, activated, paused, completed, abandoned, updated
+  actor               String      @db.VarChar(100)
+  reason              String?     @db.Text
+  before_state        Json?       @db.JsonB
+  after_state         Json?       @db.JsonB
+  timestamp           DateTime    @default(now()) @db.Timestamp(6)
+  regulation_mode     String?     @db.VarChar(50)
+  metadata            Json?       @db.JsonB
+  
+  // Relations
+  goal                goals       @relation(fields: [goal_id], references: [id], onDelete: Cascade)
+  
+  @@index([goal_id], name: "idx_goal_audit_goal")
+  @@index([timestamp], name: "idx_goal_audit_timestamp")
+  @@map("goal_audit")
 }

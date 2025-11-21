@@ -19,6 +19,8 @@ import { PrismaService } from './services/prisma.service';
 import { EntityExtractionService } from './services/entity-extraction.service';
 import { KnowledgeGraphService } from './services/knowledge-graph.service';
 import { ConceptHierarchyService } from './services/concept-hierarchy.service';
+import { GoalService } from './services/goal.service';
+import { StateInjectionService } from './services/state-injection.service';
 import { SessionController } from './controllers/session.controller';
 import { HealthController } from './controllers/health.controller';
 import { AnalyticsController } from './controllers/analytics.controller';
@@ -28,6 +30,7 @@ import { IdeController } from './controllers/ide.controller';
 import { SafetyController } from './controllers/safety.controller';
 import { MemoryController } from './controllers/memory.controller';
 import { KnowledgeController } from './controllers/knowledge.controller';
+import { GoalController } from './controllers/goal.controller';
 import { PlannerAgent } from './agents/planner.agent';
 import { AnalystAgent } from './agents/analyst.agent';
 import { RelationalAgent } from './agents/relational.agent';
@@ -98,6 +101,8 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     EntityExtractionService, // Entity extraction (Stage 2)
     KnowledgeGraphService, // Knowledge graph operations (Stage 2)
     ConceptHierarchyService, // Concept hierarchies (Stage 2)
+    GoalService, // Goal system (Stage 3)
+    StateInjectionService, // State awareness (Stage 3)
     
     // Agents
     PlannerAgent,
@@ -134,6 +139,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     SafetyController,
     MemoryController, // Memory & Consent APIs (Stage 1)
     KnowledgeController, // Knowledge Graph APIs (Stage 2)
+    GoalController, // Goal System APIs (Stage 3)
   ],
 })
 export class AppModule {}
