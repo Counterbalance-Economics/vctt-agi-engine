@@ -1,0 +1,150 @@
+
+# 📌 VCTT-AGI Engine - Endpoint Quick Reference
+# One-line explanations for each endpoint
+
+========================================
+🎯 CORE CHAT (ChatbotLanding.tsx)
+========================================
+POST /api/v1/session/start         Create new chat session with user_id and initial input
+POST /api/v1/session/step          Send message and get AI response with internal state
+GET  /api/v1/session/:id           Resume existing session by UUID
+
+========================================
+🖥️ IDE / DEEPAGENT (DeepAgent.tsx)
+========================================
+GET  /health                        System health check
+POST /api/deep/execute             Execute sandboxed terminal command
+POST /api/ide/workspace/load       Load workspace folder with file tree and recent files
+GET  /api/ide/file-tree            Get file tree structure for navigation
+POST /api/ide/file-operation       Create/read/update/delete files
+POST /api/ide/code-edit            AI-powered code editing (Cmd+K) using Jazz Team
+POST /api/ide/search-files         Search for text across workspace files (Cmd+Shift+F)
+POST /api/ide/run-tests            Execute test suite
+POST /api/ide/code-analysis        Analyze code for issues and suggestions
+GET  /api/ide/deployment-status    Get current deployment status
+POST /api/ide/deploy               Trigger deployment to production
+GET  /api/ide/image-preview        Get image preview for rendering in editor
+
+========================================
+🎯 GOALS (GoalsPanel in AIChat.tsx)
+========================================
+POST /api/goals                    Create new goal with title, description, priority
+GET  /api/goals                    Get all goals (optional status filter)
+GET  /api/goals/active             Get only active goals
+GET  /api/goals/tree               Get goal hierarchy tree (parent-child relationships)
+GET  /api/goals/state-awareness    Get MIN state awareness (self-awareness test)
+GET  /api/goals/:id                Get single goal details by ID
+PUT  /api/goals/:id                Update goal (title, status, etc.)
+POST /api/goals/:id/status         Change goal status (active/paused/completed)
+POST /api/goals/:id/progress       Add progress update with percentage and note
+DEL  /api/goals/:id                Delete goal permanently
+
+========================================
+🛡️ SAFETY (AdminSafetyDashboard.tsx)
+========================================
+GET  /api/safety/status            Get current safety status (kill switch, mode, memory)
+POST /api/safety/kill-switch       🚨 ACTIVATE KILL SWITCH - halt all operations (ADMIN)
+POST /api/safety/kill-switch/deactivate  Deactivate kill switch and resume (ADMIN)
+POST /api/safety/mode              Change operation mode: normal/clarify/slow_down (ADMIN)
+POST /api/safety/memory/enable     Enable memory system for user (ADMIN)
+POST /api/safety/memory/disable    Disable memory system for user (ADMIN)
+GET  /api/safety/audit             Get audit logs with optional limit (ADMIN)
+GET  /api/safety/audit-log         Get audit logs with required limit (ADMIN)
+POST /api/safety/config            Update safety configuration (ADMIN)
+GET  /api/safety/charter           Get VCTT AGI Safety Charter (public)
+GET  /api/safety/summary           Get safety system summary overview
+GET  /api/safety/checks            Get all safety check rules
+GET  /api/safety/checks/goal       Get goal-specific safety checks
+GET  /api/safety/checks/knowledge  Get knowledge-specific safety checks
+GET  /api/safety/checks/coach      Get coach-specific safety checks
+POST /api/safety/checks            Create new safety check rule
+GET  /api/safety/guardian/status   Get SafetySteward guardian status (watchdog health)
+
+========================================
+🧠 KNOWLEDGE GRAPH (knowledge.controller.ts)
+========================================
+POST /api/knowledge/extract        Extract entities and relationships from text using LLM
+POST /api/knowledge/entity         Create or update entity in knowledge graph
+GET  /api/knowledge/entity/:id     Get entity with all relationships
+POST /api/knowledge/relationship   Create relationship between two entities
+GET  /api/knowledge/query          Query knowledge graph using natural language
+GET  /api/knowledge/subgraph/:id   Get N-hop neighborhood around entity
+GET  /api/knowledge/concepts       Get concept hierarchy (taxonomy tree)
+GET  /api/knowledge/concepts/:id/entities  Get all entities tagged with concept
+DEL  /api/knowledge/entity/:id     Delete entity and its relationships
+GET  /api/knowledge/graph          Get full graph visualization data (nodes + edges)
+GET  /api/knowledge/search         Search knowledge graph by query string
+
+========================================
+💾 MEMORY SYSTEM (memory.controller.ts)
+========================================
+POST /api/memory/consent/grant     User grants consent for memory persistence
+POST /api/memory/consent/revoke    User revokes consent + deletes all memories (GDPR)
+GET  /api/memory/consent/:userId   Get consent status for user
+POST /api/memory/store             Store memory entry (content, type, importance)
+GET  /api/memory/retrieve          Retrieve memories for user (with filters)
+DEL  /api/memory/:memoryId         Delete specific memory (with userId auth)
+DEL  /api/memory/all/:userId       Delete all memories for user (GDPR right to deletion)
+GET  /api/memory/export/:userId    Export all memories (GDPR data portability)
+
+========================================
+📅 SCHEDULER (scheduler.controller.ts)
+========================================
+POST /api/scheduler/schedule       Schedule new task for goal (with approval requirement)
+PUT  /api/scheduler/approve/:id    Approve pending scheduled task (ADMIN)
+DEL  /api/scheduler/cancel/:id     Cancel scheduled task (ADMIN)
+GET  /api/scheduler/pending        Get all tasks awaiting approval
+GET  /api/scheduler/goal/:goalId   Get all scheduled tasks for specific goal
+GET  /api/scheduler/status/:id     Get status of scheduled task
+
+========================================
+🎓 COACH & SKILLS (CoachDashboard.tsx)
+⚠️ CONTROLLERS NOT IMPLEMENTED YET
+========================================
+GET  /api/coach/proposals          Get coach proposals (status filter) - ❌ 404
+GET  /api/skills/candidates        Get skill candidates (minTau, minCount) - ❌ 404
+POST /api/coach/proposals/:id/approve  Approve coach proposal (ADMIN) - ❌ 404
+POST /api/coach/proposals/:id/reject   Reject coach proposal (ADMIN) - ❌ 404
+
+========================================
+📊 ANALYTICS (analytics.controller.ts)
+========================================
+GET  /api/v1/analytics/sessions              Get all sessions for user
+GET  /api/v1/analytics/sessions/:id/history  Get session history with messages
+GET  /api/v1/analytics/trust-metrics         Get trust (τ) metrics over time
+GET  /api/v1/analytics/aggregate             Get aggregate analytics across all sessions
+GET  /api/v1/analytics/cross-session-patterns  Get cross-session learning patterns
+GET  /api/v1/analytics/cost                  Get cost analytics with detailed breakdown
+GET  /api/v1/analytics/performance           Get performance metrics (latency, errors)
+GET  /api/v1/analytics/export                Export analytics data (CSV/JSON)
+
+========================================
+🤖 LLM COMMITTEE (llm-committee.controller.ts)
+========================================
+GET  /api/v1/analytics/llm-committee/session/:id  Get Jazz Team stats for session
+GET  /api/v1/analytics/llm-committee/global       Get global Jazz Team statistics
+
+========================================
+🍄 TRUTH MYCELIUM (truth-mycelium.controller.ts)
+========================================
+GET  /truth-mycelium/              Get all verified facts from mycelium
+GET  /truth-mycelium/stats         Get Truth Mycelium statistics
+GET  /truth-mycelium/health        Check Truth Mycelium health status
+
+========================================
+🚨 CRITICAL RULES
+========================================
+1. Session endpoints: /api/v1/session/* (NOT /api/sessions!)
+2. Request keys: session_id (NOT sessionId), input (NOT message)
+3. UUIDs: Use uuidv4() (NOT Date.now())
+4. Controllers: Always use @Controller('api/...') with /api prefix
+5. CORS: Regex pattern for Vercel domains: /^https:\/\/vctt-agi-[a-z0-9-]+\.vercel\.app$/
+
+========================================
+🔗 PRODUCTION URLS
+========================================
+Backend:  https://vctt-agi-backend.onrender.com
+Frontend: https://vctt-agi-ui.vercel.app
+Swagger:  https://vctt-agi-backend.onrender.com/api-docs
+Health:   https://vctt-agi-backend.onrender.com/health
+
