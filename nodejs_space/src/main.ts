@@ -18,24 +18,15 @@ async function bootstrap() {
     }),
   );
 
-  // FULL CORS FIX — allows ALL current & future Vercel deploys + localhost
+  // FULL CORS FIX — explicit Vercel origins + localhost
   app.enableCors({
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      const allowed = [
-        /^https:\/\/vcttagi-.*\.vercel\.app$/,
-        'https://vcttagiui.vercel.app',
-        'https://vcttagi.vercel.app',
-        'http://localhost:3000',
-        'http://localhost:5173',
-      ];
-
-      if (!origin || allowed.some(regex => regex instanceof RegExp ? regex.test(origin) : regex === origin)) {
-        callback(null, true);
-      } else {
-        console.warn(`CORS blocked origin: ${origin}`);
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
+    origin: [
+      /^https:\/\/vcttagi-.*\.vercel\.app$/,
+      'https://vcttagiui.vercel.app',
+      'https://vcttagi.vercel.app',
+      'http://localhost:3000',
+      'http://localhost:5173',
+    ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
     allowedHeaders: 'Content-Type, Authorization',
