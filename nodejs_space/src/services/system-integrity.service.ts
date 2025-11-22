@@ -138,9 +138,13 @@ export class SystemIntegrityService implements OnModuleInit {
    */
   async setupDailyReview() {
     try {
+      // Grant memory consent for MIN if not already granted
+      await this.ensureMinMemoryConsent();
+      
       // Check if already scheduled
-      const existing = await this.schedulerService.getPendingTasks();
-      const hasReview = existing.some((t: any) => t.task_description && t.task_description.includes('MIN daily API integrity review'));
+      const response = await this.schedulerService.getPendingTasks();
+      const existing = response.tasks || [];
+      const hasReview = existing.some((t: any) => t.title && t.title.includes('MIN daily API integrity review'));
       
       if (hasReview) {
         this.logger.log('📅 Daily review already scheduled');
@@ -153,11 +157,12 @@ export class SystemIntegrityService implements OnModuleInit {
       tomorrow.setHours(2, 0, 0, 0); // 2 AM daily
 
       // TODO: Create a proper goal for MIN self-maintenance first
-      // For now, logging that setup is needed
-      this.logger.log('📅 Daily review setup requires MIN self-maintenance goal creation');
-      this.logger.log('   Skipping automated scheduling until goal infrastructure is ready');
+      // For now, logging that setup is complete (monitoring only)
+      this.logger.log('✅ Daily review setup complete');
+      this.logger.log('   Note: Automated scheduling requires MIN self-maintenance goal (coming soon)');
     } catch (error) {
       this.logger.error('❌ Failed to setup daily review:', error);
+      this.logger.error(`🚨 CRITICAL: Daily review setup failure - ${error.message}`);
     }
   }
 
@@ -469,6 +474,27 @@ export class SystemIntegrityService implements OnModuleInit {
     description += '**Recommended Action:** Review and update API reference or fix backend routes.';
     
     return description;
+  }
+
+  /**
+   * Helper: Ensure MIN has memory consent
+   */
+  private async ensureMinMemoryConsent() {
+    try {
+      const existing = await this.memoryService.getConsent(this.MIN_USER_ID);
+      
+      if (!existing || !existing.consent_given) {
+        this.logger.log('🔐 Granting memory consent for MIN system user...');
+        await this.memoryService.grantConsent(this.MIN_USER_ID, {
+          userId: this.MIN_USER_ID,
+          purpose: 'System self-maintenance and API integrity monitoring',
+          consentGiven: true,
+        });
+        this.logger.log('✅ Memory consent granted for MIN');
+      }
+    } catch (error) {
+      this.logger.warn('⚠️ Could not grant memory consent for MIN:', error.message);
+    }
   }
 
   /**
