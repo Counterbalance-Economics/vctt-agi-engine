@@ -42,6 +42,7 @@ import { ToolsController } from './tools/tools.controller';
 import { EvaluationController } from './evaluation/evaluation.controller';
 import { SkillsController } from './skills/skills.controller';
 import { CoachController } from './coach/coach.controller';
+import { DeepAgentController } from './controllers/deepagent.controller';
 import { PlannerAgent } from './agents/planner.agent';
 import { AnalystAgent } from './agents/analyst.agent';
 import { RelationalAgent } from './agents/relational.agent';
@@ -164,6 +165,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     EvaluationController, // Self-Evaluation & Coach (Stage 4/5)
     SkillsController, // Skill Library (Stage 4/5)
     CoachController, // Nightly Coach Analysis (Stage 5)
+    DeepAgentController, // DeepAgent Terminal (IDE)
   ],
 })
 export class AppModule {}

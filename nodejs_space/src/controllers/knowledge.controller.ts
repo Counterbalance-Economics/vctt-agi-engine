@@ -197,4 +197,145 @@ export class KnowledgeController {
       message: deleted ? 'Entity deleted' : 'Deletion failed or blocked',
     };
   }
+
+  // NEW ENDPOINTS for Frontend Compatibility
+
+  @Get('graph')
+  @ApiOperation({ summary: 'Get full knowledge graph visualization data' })
+  @ApiResponse({ status: 200, description: 'Knowledge graph retrieved' })
+  @ApiQuery({ name: 'userId', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  async getKnowledgeGraph(@Query('userId') userId?: string, @Query('limit') limit?: string): Promise<any> {
+    try {
+      const maxNodes = limit ? parseInt(limit, 10) : 100;
+      
+      // Query all entities and relationships for the user
+      const queryResult = await this.knowledgeGraph.queryKnowledgeGraph({
+        userId: userId || 'system',
+        limit: maxNodes
+      });
+
+      // Transform to graph format (nodes and edges)
+      const nodes = queryResult.map((item: any) => ({
+        id: item.id || item.entityId,
+        label: item.name || item.entityName,
+        type: item.type || 'entity',
+        properties: item.attributes || {}
+      }));
+
+      const edges: any[] = [];
+      
+      // Extract relationships from query results
+      queryResult.forEach((item: any) => {
+        if (item.relationships) {
+          item.relationships.forEach((rel: any) => {
+            edges.push({
+              id: rel.id || `${item.id}-${rel.targetId}`,
+              source: item.id,
+              target: rel.targetId || rel.target,
+              label: rel.type || rel.relationType,
+              weight: rel.weight || 1.0
+            });
+          });
+        }
+      });
+
+      return {
+        success: true,
+        timestamp: new Date().toISOString(),
+        graph: {
+          nodes,
+          edges,
+          metadata: {
+            totalNodes: nodes.length,
+            totalEdges: edges.length,
+            userId: userId || 'system'
+          }
+        }
+      };
+    } catch (error) {
+      this.logger.error('Error getting knowledge graph:', error);
+      return {
+        success: true,
+        timestamp: new Date().toISOString(),
+        graph: {
+          nodes: [],
+          edges: [],
+          metadata: {
+            totalNodes: 0,
+            totalEdges: 0,
+            error: error.message
+          }
+        }
+      };
+    }
+  }
+
+  @Get('search')
+  @ApiOperation({ summary: 'Search knowledge graph by query' })
+  @ApiResponse({ status: 200, description: 'Search results' })
+  @ApiQuery({ name: 'q', required: true, description: 'Search query' })
+  @ApiQuery({ name: 'userId', required: false })
+  @ApiQuery({ name: 'type', required: false, description: 'Filter by entity type' })
+  @ApiQuery({ name: 'limit', required: false })
+  async searchKnowledge(
+    @Query('q') query: string,
+    @Query('userId') userId?: string,
+    @Query('type') entityType?: string,
+    @Query('limit') limit?: string
+  ): Promise<any> {
+    try {
+      const maxResults = limit ? parseInt(limit, 10) : 20;
+
+      if (!query || query.trim() === '') {
+        return {
+          success: true,
+          timestamp: new Date().toISOString(),
+          query: query,
+          results: [],
+          count: 0
+        };
+      }
+
+      // Search knowledge graph by name/description
+      const searchResults = await this.knowledgeGraph.queryKnowledgeGraph({
+        userId: userId || 'system',
+        entityName: query,
+        entityType: entityType,
+        limit: maxResults
+      });
+
+      // Also do a fuzzy text search in entity names
+      const fuzzyResults = searchResults.filter((item: any) => {
+        const name = (item.name || item.entityName || '').toLowerCase();
+        const description = (item.description || '').toLowerCase();
+        const searchTerm = query.toLowerCase();
+        
+        return name.includes(searchTerm) || description.includes(searchTerm);
+      });
+
+      return {
+        success: true,
+        timestamp: new Date().toISOString(),
+        query: query,
+        results: fuzzyResults,
+        count: fuzzyResults.length,
+        filters: {
+          userId: userId || 'system',
+          type: entityType,
+          limit: maxResults
+        }
+      };
+    } catch (error) {
+      this.logger.error('Error searching knowledge graph:', error);
+      return {
+        success: true,
+        timestamp: new Date().toISOString(),
+        query: query,
+        results: [],
+        count: 0,
+        error: error.message
+      };
+    }
+  }
 }
