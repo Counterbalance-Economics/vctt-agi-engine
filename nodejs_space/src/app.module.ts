@@ -23,6 +23,7 @@ import { ConceptHierarchyService } from './services/concept-hierarchy.service';
 import { GoalService } from './services/goal.service';
 import { StateInjectionService } from './services/state-injection.service';
 import { SchedulerService } from './services/scheduler.service';
+import { SystemIntegrityService } from './services/system-integrity.service';
 import { ToolsService } from './tools/tools.service';
 import { EvaluationService } from './evaluation/evaluation.service';
 import { SkillsService } from './skills/skills.service';
@@ -119,6 +120,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     GoalService, // Goal system (Stage 3)
     StateInjectionService, // State awareness (Stage 3)
     SchedulerService, // Autonomous task scheduling (Stage 4)
+    SystemIntegrityService, // MIN self-diagnostic & daily review (Stage 5)
     ToolsService, // Tool orchestration (Stage 4)
     EvaluationService, // Self-evaluation & coach (Stage 4/5)
     SkillsService, // Skill library (Stage 4/5)
