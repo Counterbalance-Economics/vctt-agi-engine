@@ -18,3 +18,10 @@ out
 .deploy
 .logs
 *.tsbuildinfo
+
+# Environment files (prevent config bleed between environments)
+.env
+.env.local
+.env.production
+.env.development
+.env.*.local
