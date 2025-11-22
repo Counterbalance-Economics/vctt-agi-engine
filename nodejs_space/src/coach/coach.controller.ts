@@ -4,7 +4,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBody } from 
 import { CoachService } from './coach.service';
 
 @ApiTags('coach')
-@Controller('coach')
+@Controller('api/coach')
 export class CoachController {
   private readonly logger = new Logger(CoachController.name);
 

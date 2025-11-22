@@ -4,7 +4,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBody } from '@nestjs/s
 import { EvaluationService } from './evaluation.service';
 
 @ApiTags('evaluation')
-@Controller('evaluations')
+@Controller('api/evaluations')
 export class EvaluationController {
   private readonly logger = new Logger(EvaluationController.name);
 

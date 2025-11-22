@@ -5,7 +5,7 @@ import { ToolsService } from './tools.service';
 import { InvokeToolDto, ToolInvocationResponseDto } from './dto/tool-invocation.dto';
 
 @ApiTags('Tools')
-@Controller('tools')
+@Controller('api/tools')
 export class ToolsController {
   private readonly logger = new Logger(ToolsController.name);
 

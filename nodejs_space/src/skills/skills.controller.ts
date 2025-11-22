@@ -4,7 +4,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBody, ApiParam } from 
 import { SkillsService } from './skills.service';
 
 @ApiTags('skills')
-@Controller('skills')
+@Controller('api/skills')
 export class SkillsController {
   private readonly logger = new Logger(SkillsController.name);
 
