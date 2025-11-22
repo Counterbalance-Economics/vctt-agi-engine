@@ -7,7 +7,9 @@ import { json, urlencoded } from 'express';
 import { SafetyStewardAgent } from './agents/safety-steward.agent';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create(AppModule, {
+    logger: ['log', 'error', 'warn', 'debug', 'verbose'],
+  });
 
   // Global validation
   app.useGlobalPipes(
