@@ -4,7 +4,7 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { json, urlencoded } from 'express';
-import { SafetyStewardAgent } from './safety/safety-steward.agent';
+import { SafetyStewardAgent } from './agents/safety-steward.agent';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -20,7 +20,7 @@ async function bootstrap() {
 
   // FULL CORS FIX — allows ALL current & future Vercel deploys + localhost
   app.enableCors({
-    origin: (origin, callback) => {
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
       const allowed = [
         /^https:\/\/vcttagi-.*\.vercel\.app$/,
         'https://vcttagiui.vercel.app',
