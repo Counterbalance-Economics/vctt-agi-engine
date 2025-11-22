@@ -58,9 +58,26 @@ async function bootstrap() {
   const safety = app.get(SafetyStewardAgent);
   console.log('SafetySteward Loaded — Mode:', safety.getMode());
 
+  // Enhanced Startup Banner with Instance Identity
+  const platform = process.env.DEPLOYMENT_PLATFORM || 'unknown';
+  const role = process.env.DEPLOYMENT_ROLE || 'unknown';
+  const instanceName = process.env.INSTANCE_NAME || 'unknown-instance';
+  const frontendUrl = process.env.CONNECTED_FRONTEND || 'unknown';
+  
+  console.log('\n');
+  console.log('╔════════════════════════════════════════════════════════════════╗');
+  console.log(`║  VCTT-AGI Engine (MIN) - ${role.toUpperCase().padEnd(28)} BACKEND  ║`);
+  console.log('╠════════════════════════════════════════════════════════════════╣');
+  console.log(`║  Instance:  ${instanceName.padEnd(49)} ║`);
+  console.log(`║  Platform:  ${platform.padEnd(49)} ║`);
+  console.log(`║  Role:      ${role.padEnd(49)} ║`);
+  console.log(`║  Frontend:  ${frontendUrl.substring(0, 49).padEnd(49)} ║`);
+  console.log('╚════════════════════════════════════════════════════════════════╝');
+  console.log('\n');
+
   const port = process.env.PORT || 3000;
   await app.listen(port);
-  console.log(`VCTT-AGI Backend LIVE on port ${port}`);
+  console.log(`🚀 VCTT-AGI Backend LIVE on port ${port}`);
 }
 
 bootstrap();
