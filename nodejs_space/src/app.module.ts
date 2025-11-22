@@ -24,8 +24,9 @@ import { GoalService } from './services/goal.service';
 import { StateInjectionService } from './services/state-injection.service';
 import { SchedulerService } from './services/scheduler.service';
 import { ToolsService } from './tools/tools.service';
-// import { EvaluationService } from './evaluation/evaluation.service';
-// import { SkillsService } from './skills/skills.service';
+import { EvaluationService } from './evaluation/evaluation.service';
+import { SkillsService } from './skills/skills.service';
+import { CoachService } from './coach/coach.service';
 import { SessionController } from './controllers/session.controller';
 import { HealthController } from './controllers/health.controller';
 import { AnalyticsController } from './controllers/analytics.controller';
@@ -38,8 +39,9 @@ import { KnowledgeController } from './controllers/knowledge.controller';
 import { GoalController } from './controllers/goal.controller';
 import { SchedulerController } from './controllers/scheduler.controller';
 import { ToolsController } from './tools/tools.controller';
-// import { EvaluationController } from './evaluation/evaluation.controller';
-// import { SkillsController } from './skills/skills.controller';
+import { EvaluationController } from './evaluation/evaluation.controller';
+import { SkillsController } from './skills/skills.controller';
+import { CoachController } from './coach/coach.controller';
 import { PlannerAgent } from './agents/planner.agent';
 import { AnalystAgent } from './agents/analyst.agent';
 import { RelationalAgent } from './agents/relational.agent';
@@ -117,8 +119,9 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     StateInjectionService, // State awareness (Stage 3)
     SchedulerService, // Autonomous task scheduling (Stage 4)
     ToolsService, // Tool orchestration (Stage 4)
-    // EvaluationService, // Self-evaluation & coach (Stage 4) - TODO: Schema alignment needed
-    // SkillsService, // Skill library (Stage 4) - TODO: Schema alignment needed
+    EvaluationService, // Self-evaluation & coach (Stage 4/5)
+    SkillsService, // Skill library (Stage 4/5)
+    CoachService, // Nightly self-improvement loop (Stage 5)
     
     // Agents
     PlannerAgent,
@@ -158,8 +161,9 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     GoalController, // Goal System APIs (Stage 3)
     SchedulerController, // Autonomous Task Scheduling (Stage 4)
     ToolsController, // Tool Orchestration (Stage 4)
-    // EvaluationController, // Self-Evaluation & Coach (Stage 4) - TODO: Schema alignment
-    // SkillsController, // Skill Library (Stage 4) - TODO: Schema alignment
+    EvaluationController, // Self-Evaluation & Coach (Stage 4/5)
+    SkillsController, // Skill Library (Stage 4/5)
+    CoachController, // Nightly Coach Analysis (Stage 5)
   ],
 })
 export class AppModule {}
