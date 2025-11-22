@@ -597,16 +597,50 @@
 ## 📊 Analytics
 
 **Purpose:** Session analytics, trust metrics, cost tracking, performance monitoring  
-**Frontend Component:** Analytics dashboard (planned)  
+**Frontend Component:** `ChatbotLanding.tsx` (conversation history), Analytics dashboard (planned)  
 **Backend Controller:** `analytics.controller.ts`  
 **Base Path:** `/api/v1/analytics`
 
 ### GET `/api/v1/analytics/sessions`
-**Get all sessions for a user**
-- **Query Params:** `user_id` (optional)
+**Get all sessions for a user (with message count and trust scores)**
+- **Query Params:** `user_id` (optional), `limit` (default 50)
+- **Response:**
+  ```json
+  {
+    "total": 50,
+    "sessions": [
+      {
+        "session_id": "uuid",
+        "user_id": "anonymous",
+        "created_at": "2024-01-15T10:00:00Z",
+        "message_count": 12,
+        "last_activity": "2024-01-15T10:30:00Z",
+        "trust_tau": 0.87,
+        "repair_count": 1
+      }
+    ]
+  }
+  ```
+- **Frontend Usage:** `ChatbotLanding.tsx:42` - Load conversation history in sidebar
+- **✅ CONNECTED & WORKING**
 
 ### GET `/api/v1/analytics/sessions/:sessionId/history`
-**Get session history with messages**
+**Get session history with full messages**
+- **Response:**
+  ```json
+  {
+    "session_id": "uuid",
+    "user_id": "anonymous",
+    "created_at": "2024-01-15T10:00:00Z",
+    "messages": [
+      { "id": "msg-id", "role": "user", "content": "Hello", "timestamp": "..." }
+    ],
+    "internal_state": { "trust_tau": 0.87, ... },
+    "last_updated": "2024-01-15T10:30:00Z"
+  }
+  ```
+- **Frontend Usage:** `ChatbotLanding.tsx:125` - Load full conversation when user clicks on it
+- **✅ CONNECTED & WORKING**
 
 ### GET `/api/v1/analytics/trust-metrics`
 **Get trust (τ) metrics over time**
