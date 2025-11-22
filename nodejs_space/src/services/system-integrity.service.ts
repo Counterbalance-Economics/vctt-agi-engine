@@ -12,8 +12,6 @@ import { HttpAdapterHost } from '@nestjs/core';
 import { MemoryService } from './memory.service';
 import { AnalyticsService } from './analytics.service';
 import { SchedulerService } from './scheduler.service';
-import { CoachService } from '../coach/coach.service';
-import { SafetyStewardAgent } from '../agents/safety-steward.agent';
 
 interface ApiReference {
   version: string;
@@ -48,8 +46,6 @@ export class SystemIntegrityService implements OnModuleInit {
     private readonly analyticsService: AnalyticsService,
     private readonly schedulerService: SchedulerService,
     private readonly httpAdapter: HttpAdapterHost,
-    private readonly coachService: CoachService,
-    private readonly safetySteward: SafetyStewardAgent,
   ) {}
 
   /**
@@ -206,18 +202,9 @@ export class SystemIntegrityService implements OnModuleInit {
       if (errors.percentage > 5) {
         report.recommendations.push(`Investigate high error rate: ${errors.percentage}%`);
         
-        // Create a coach proposal for high error rates
-        try {
-          await this.coachService.createProposal({
-            type: 'bug_fix',
-            title: 'Daily Review: High Error Rate',
-            description: `Error rate ${errors.percentage}% exceeds threshold. Top errors:\n${errors.top.join('\n')}`,
-            status: 'pending',
-            priority: 'high',
-          });
-        } catch (err) {
-          this.logger.error('Failed to create coach proposal:', err);
-        }
+        // TODO: Create a coach proposal for high error rates
+        // This requires direct Prisma access since CoachService doesn't expose createProposal
+        this.logger.warn(`⚠️ High error rate detected: ${errors.percentage}% - Manual investigation recommended`);
       }
 
       // Step 6: Update memory with report
