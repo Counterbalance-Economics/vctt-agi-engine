@@ -12,6 +12,7 @@ import { HttpAdapterHost } from '@nestjs/core';
 import { MemoryService } from './memory.service';
 import { AnalyticsService } from './analytics.service';
 import { SchedulerService } from './scheduler.service';
+import { ConsentManagerService } from './consent-manager.service';
 
 interface ApiReference {
   version: string;
@@ -46,6 +47,7 @@ export class SystemIntegrityService implements OnModuleInit {
     private readonly analyticsService: AnalyticsService,
     private readonly schedulerService: SchedulerService,
     private readonly httpAdapter: HttpAdapterHost,
+    private readonly consentManager: ConsentManagerService,
   ) {}
 
   /**
@@ -481,15 +483,19 @@ export class SystemIntegrityService implements OnModuleInit {
    */
   private async ensureMinMemoryConsent() {
     try {
-      const existing = await this.memoryService.getConsent(this.MIN_USER_ID);
+      const existing = await this.consentManager.getConsentInfo(this.MIN_USER_ID);
       
-      if (!existing || !existing.consent_given) {
+      if (!existing || !existing.consentGiven) {
         this.logger.log('🔐 Granting memory consent for MIN system user...');
-        await this.memoryService.grantConsent(this.MIN_USER_ID, {
-          userId: this.MIN_USER_ID,
-          purpose: 'System self-maintenance and API integrity monitoring',
-          consentGiven: true,
-        });
+        await this.consentManager.grantConsent(
+          this.MIN_USER_ID,
+          {
+            allowConversationMemory: true,
+            allowLearnedFacts: true,
+            allowPreferences: true,
+            retentionDays: 365 // Long-term retention for system user
+          }
+        );
         this.logger.log('✅ Memory consent granted for MIN');
       }
     } catch (error) {
