@@ -22,8 +22,10 @@ async function bootstrap() {
   app.enableCors({
     origin: [
       /^https:\/\/vcttagi-.*\.vercel\.app$/,
+      /^https:\/\/vctt-agi-.*\.vercel\.app$/,
       'https://vcttagiui.vercel.app',
       'https://vcttagi.vercel.app',
+      'https://vctt-agi-ui.vercel.app',
       'http://localhost:3000',
       'http://localhost:5173',
     ],
