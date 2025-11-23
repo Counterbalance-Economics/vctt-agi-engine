@@ -69,11 +69,12 @@ Be specific and actionable.`
         }
       ];
 
-      const breakdown = await this.llmCascade.callRole(
-        'synthesiser',
+      const breakdown = await this.llmCascade.generateCompletion(
         breakdownMessages,
         'You are MIN\'s Synthesizer - expert at breaking down complex goals into actionable plans.',
-        0.7
+        0.7,
+        'synthesiser',
+        false
       );
 
       this.logger.log(`✅ Breakdown complete (${breakdown.model})`);
@@ -98,11 +99,12 @@ Be honest and thorough.`
         }
       ];
 
-      const analysis = await this.llmCascade.callRole(
-        'analyst',
+      const analysis = await this.llmCascade.generateCompletion(
         analysisMessages,
         'You are MIN\'s Analyst - expert at evaluating technical feasibility.',
-        0.5
+        0.5,
+        'analyst',
+        false
       );
 
       this.logger.log(`✅ Analysis complete (${analysis.model})`);
@@ -151,11 +153,12 @@ Deliver a production-ready result.`
         }
       ];
 
-      const execution = await this.llmCascade.callRole(
-        'executor',
+      const execution = await this.llmCascade.generateCompletion(
         executorMessages,
         'You are MIN\'s Executor - expert at implementing solutions with precision and quality.',
-        0.8
+        0.8,
+        'analyst', // Using analyst role as executor fallback
+        false
       );
 
       this.logger.log(`✅ Execution complete (${execution.model})`);
@@ -181,11 +184,12 @@ Provide verification score (0-100%) and recommendations.`
         }
       ];
 
-      const verification = await this.llmCascade.callRole(
-        'verification',
+      const verification = await this.llmCascade.generateCompletion(
         verificationMessages,
         'You are MIN\'s Verification agent - expert at quality assurance and testing.',
-        0.3
+        0.3,
+        'verification',
+        false
       );
 
       this.logger.log(`✅ Verification complete (${verification.model})`);
