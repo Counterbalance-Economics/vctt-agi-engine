@@ -27,6 +27,9 @@ export class Goal {
   @Column({ type: 'varchar', length: 100 })
   created_by: string;
 
+  @Column({ type: 'jsonb', nullable: true, default: '{}' })
+  metadata: any;
+
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
 

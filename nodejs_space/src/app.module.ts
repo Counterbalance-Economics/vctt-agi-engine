@@ -33,6 +33,9 @@ import { DeepAgentSessionService } from './services/deepagent-session.service';
 import { SessionActivityService } from './services/session-activity.service';
 import { AutonomousOrchestratorService } from './services/autonomous-orchestrator.service';
 import { CoachExecutionService } from './services/coach-execution.service';
+import { LLMCoachService } from './services/llm-coach.service';
+import { PriorityEngineService } from './services/priority-engine.service';
+import { RealTimeSessionService } from './services/realtime-session.service';
 import { SessionController } from './controllers/session.controller';
 import { SessionActivityController } from './controllers/session-activity.controller';
 import { AutonomousExecutionController } from './controllers/autonomous-execution.controller';
@@ -76,6 +79,7 @@ import { Goal } from './entities/goal.entity';
 import { Subtask } from './entities/subtask.entity';
 import { StreamingGateway } from './gateways/streaming.gateway';
 import { ExecutionGateway } from './gateways/execution.gateway';
+import { AutonomousGateway } from './gateways/autonomous.gateway';
 import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 
 @Module({
@@ -140,8 +144,11 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     CoachService, // Nightly self-improvement loop (Stage 5)
     DeepAgentSessionService, // DeepAgent Sessions (Phase 1 Manual Bridge)
     SessionActivityService, // Session Activity Tracking (Phase 2 Auto-Sync)
-    AutonomousOrchestratorService, // Autonomous Orchestrator (Phase 3 Full Autonomy)
+    AutonomousOrchestratorService, // Autonomous Orchestrator (Phase 3/4 Full Reality)
     CoachExecutionService, // Coach Execution Analysis (Phase 3 Full Autonomy)
+    LLMCoachService, // LLM-powered coach analysis (Phase 4 Real AI)
+    PriorityEngineService, // Auto-prioritization engine (Phase 4 Killer Feature)
+    RealTimeSessionService, // Real-time DeepAgent session management (Phase 4)
     
     // Agents
     PlannerAgent,
@@ -167,6 +174,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     // WebSocket Gateways
     StreamingGateway,
     ExecutionGateway, // Real-time execution updates (Phase 3 Full Autonomy)
+    AutonomousGateway, // Real-time autonomous system updates (Phase 4 Full Reality)
   ],
   
   controllers: [

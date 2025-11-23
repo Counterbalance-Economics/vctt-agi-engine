@@ -5,12 +5,20 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Goal } from '../entities/goal.entity';
 import { Subtask } from '../entities/subtask.entity';
+import { RealTimeSessionService } from './realtime-session.service';
+import { LLMCoachService } from './llm-coach.service';
+import { PriorityEngineService } from './priority-engine.service';
+import { AutonomousGateway } from '../gateways/autonomous.gateway';
 
 /**
- * Autonomous Orchestrator Service - Phase 3
+ * Autonomous Orchestrator Service - Phase 4
  * 
- * The brain of MIN's autonomous execution system.
- * Monitors goals, spawns DeepAgent sessions, manages parallel execution.
+ * The brain of MIN's autonomous execution system with FULL REALITY MODE:
+ * - Real DeepAgent session spawning
+ * - LLM-powered coach analysis
+ * - Dynamic auto-prioritization
+ * - Swarm Mode (3→10 parallel sessions)
+ * - Real-time WebSocket updates
  */
 
 export interface ExecutionQueueItem {
@@ -46,15 +54,31 @@ export interface AgentPoolEntry {
 export class AutonomousOrchestratorService {
   private readonly logger = new Logger(AutonomousOrchestratorService.name);
   private isRunning = false;
-  private readonly MAX_PARALLEL_EXECUTIONS = 3;
+  
+  // Swarm Mode: Dynamic parallel execution limits
+  private readonly BASE_MAX_PARALLEL = 3;
+  private readonly SWARM_MAX_PARALLEL = 10;
+  private readonly SWARM_ACTIVATION_THRESHOLD = 8;
+  private swarmModeActive = false;
 
   constructor(
     @InjectRepository(Goal)
     private goalRepository: Repository<Goal>,
     @InjectRepository(Subtask)
     private subtaskRepository: Repository<Subtask>,
+    private realTimeSessionService: RealTimeSessionService,
+    private coachService: LLMCoachService,
+    private priorityEngine: PriorityEngineService,
+    private gateway: AutonomousGateway,
   ) {
-    this.logger.log('🤖 Autonomous Orchestrator initialized');
+    this.logger.log('🤖 Autonomous Orchestrator initialized (Phase 4 - FULL REALITY MODE)');
+  }
+
+  /**
+   * Get current max parallel executions (dynamic based on queue depth)
+   */
+  private get maxParallelExecutions(): number {
+    return this.swarmModeActive ? this.SWARM_MAX_PARALLEL : this.BASE_MAX_PARALLEL;
   }
 
   /**
@@ -72,17 +96,26 @@ export class AutonomousOrchestratorService {
     try {
       this.logger.debug('🔄 Starting orchestration cycle...');
 
-      // Step 1: Discover new work (active goals not in queue)
+      // Step 0: Check swarm mode activation
+      await this.checkSwarmMode();
+
+      // Step 1: Run auto-prioritization
+      await this.autoPrioritize();
+
+      // Step 2: Discover new work (active goals not in queue)
       await this.discoverNewWork();
 
-      // Step 2: Process queued tasks
+      // Step 3: Process queued tasks with real DeepAgent spawning
       await this.processQueue();
 
-      // Step 3: Monitor running executions
+      // Step 4: Monitor running executions
       await this.monitorExecutions();
 
-      // Step 4: Clean up completed/failed tasks
+      // Step 5: Clean up completed/failed tasks
       await this.cleanup();
+
+      // Step 6: Broadcast status update
+      await this.broadcastStatus();
 
       this.logger.debug('✅ Orchestration cycle complete');
 
@@ -90,6 +123,43 @@ export class AutonomousOrchestratorService {
       this.logger.error(`❌ Orchestration error: ${error.message}`, error.stack);
     } finally {
       this.isRunning = false;
+    }
+  }
+
+  /**
+   * Check if swarm mode should be activated
+   */
+  private async checkSwarmMode() {
+    const db = this.goalRepository.manager;
+
+    const queueDepth = await db.query(`
+      SELECT COUNT(*) as count FROM execution_queue
+      WHERE status IN ('queued', 'processing')
+    `);
+
+    const depth = parseInt(queueDepth[0]?.count || '0');
+
+    const shouldActivate = depth >= this.SWARM_ACTIVATION_THRESHOLD;
+
+    if (shouldActivate && !this.swarmModeActive) {
+      this.swarmModeActive = true;
+      this.logger.warn(`🐝 SWARM MODE ACTIVATED - Queue depth: ${depth}, Max parallel: ${this.SWARM_MAX_PARALLEL}`);
+      this.gateway.broadcastSwarmStatus(true, depth);
+    } else if (!shouldActivate && this.swarmModeActive) {
+      this.swarmModeActive = false;
+      this.logger.log(`🐝 Swarm mode deactivated - Queue depth: ${depth}`);
+      this.gateway.broadcastSwarmStatus(false, depth);
+    }
+  }
+
+  /**
+   * Auto-prioritize active goals periodically
+   */
+  private async autoPrioritize() {
+    // Run every 10th cycle (~5 minutes)
+    if (Math.random() < 0.1) {
+      this.logger.debug('🎯 Running auto-prioritization...');
+      await this.priorityEngine.reprioritizeAll();
     }
   }
 
@@ -121,26 +191,57 @@ export class AutonomousOrchestratorService {
   }
 
   /**
-   * Queue a goal for execution
+   * Queue a goal for execution with LLM coach analysis
    */
-  async queueGoal(goalId: number, priority: number = 3) {
+  async queueGoal(goalId: number, priority?: number) {
     const db = this.goalRepository.manager;
+
+    // Get goal details
+    const goal = await this.goalRepository.findOne({ where: { id: goalId } });
+    if (!goal) {
+      throw new Error(`Goal ${goalId} not found`);
+    }
+
+    // Get LLM coach analysis
+    this.logger.log(`🧠 Running coach analysis for goal ${goalId}...`);
+    const analysis = await this.coachService.analyzeGoal(goal.title, goal.description || '');
+
+    // Use coach-suggested priority if not explicitly provided
+    const finalPriority = priority !== undefined ? priority : analysis.suggested_priority;
+
+    // Store analysis in metadata
+    const metadata = {
+      source: 'auto_discovery',
+      coach_analysis: analysis,
+      queued_by: 'orchestrator',
+    };
 
     const result = await db.query(`
       INSERT INTO execution_queue (goal_id, priority, status, metadata)
       VALUES ($1, $2, 'queued', $3)
       RETURNING *
-    `, [goalId, priority, JSON.stringify({ source: 'auto_discovery' })]);
+    `, [goalId, finalPriority, JSON.stringify(metadata)]);
 
-    this.logger.log(`➕ Goal ${goalId} added to execution queue (priority: ${priority})`);
+    this.logger.log(
+      `➕ Goal ${goalId} queued (priority: ${finalPriority}, feasibility: ${analysis.feasibility_score}%, effort: ${analysis.estimated_effort})`
+    );
 
-    await this.logExecution(result[0].id, goalId, 'info', 'Goal queued for autonomous execution');
+    await this.logExecution(
+      result[0].id,
+      goalId,
+      'info',
+      `Goal queued - ${analysis.recommended_approach}`,
+      { analysis }
+    );
+
+    // Broadcast to frontend
+    this.gateway.broadcastQueueUpdate(result[0]);
 
     return result[0];
   }
 
   /**
-   * Process queued tasks - spawn DeepAgent sessions
+   * Process queued tasks - spawn real DeepAgent sessions
    */
   private async processQueue() {
     const db = this.goalRepository.manager;
@@ -151,10 +252,12 @@ export class AutonomousOrchestratorService {
       WHERE status = 'processing'
     `);
 
-    const availableSlots = this.MAX_PARALLEL_EXECUTIONS - parseInt(runningCount[0].count);
+    const availableSlots = this.maxParallelExecutions - parseInt(runningCount[0].count);
 
     if (availableSlots <= 0) {
-      this.logger.debug(`⏸️  Max parallel executions reached (${this.MAX_PARALLEL_EXECUTIONS})`);
+      this.logger.debug(
+        `⏸️  Max parallel executions reached (${this.maxParallelExecutions}${this.swarmModeActive ? ' - SWARM MODE' : ''})`
+      );
       return;
     }
 
@@ -168,7 +271,9 @@ export class AutonomousOrchestratorService {
     `, [availableSlots]);
 
     if (queuedTasks.length > 0) {
-      this.logger.log(`🚀 Processing ${queuedTasks.length} queued tasks`);
+      this.logger.log(
+        `🚀 Processing ${queuedTasks.length} queued tasks (${this.swarmModeActive ? 'SWARM MODE' : 'normal mode'})`
+      );
 
       for (const task of queuedTasks) {
         await this.executeTask(task);
@@ -177,25 +282,13 @@ export class AutonomousOrchestratorService {
   }
 
   /**
-   * Execute a task - spawn DeepAgent session
+   * Execute a task - spawn REAL DeepAgent session (Phase 4)
    */
   private async executeTask(task: ExecutionQueueItem) {
     const db = this.goalRepository.manager;
 
     try {
       this.logger.log(`▶️  Executing task ${task.id} (goal: ${task.goal_id})`);
-
-      // Update task status
-      await db.query(`
-        UPDATE execution_queue
-        SET status = 'processing',
-            attempts = attempts + 1,
-            started_at = CURRENT_TIMESTAMP,
-            assigned_agent = $1
-        WHERE id = $2
-      `, ['MIN-ORCHESTRATOR', task.id]);
-
-      await this.logExecution(task.id, task.goal_id, 'info', 'Task execution started');
 
       // Get goal details
       const goal = await this.goalRepository.findOne({ where: { id: task.goal_id } });
@@ -204,12 +297,43 @@ export class AutonomousOrchestratorService {
         throw new Error(`Goal ${task.goal_id} not found`);
       }
 
-      // TODO: Actually spawn DeepAgent session here
-      // For now, we'll simulate execution
-      this.logger.warn(`⚠️  DeepAgent integration not yet implemented - simulating execution`);
+      // Spawn REAL DeepAgent session
+      this.logger.log(`🌱 Spawning DeepAgent session for: "${goal.title}"`);
+      
+      const session = await this.realTimeSessionService.spawnSession(
+        goal.id,
+        goal.title,
+        goal.description || ''
+      );
 
-      // Simulate execution (remove this in production)
-      await this.simulateExecution(task, goal);
+      // Update task with session info
+      await db.query(`
+        UPDATE execution_queue
+        SET status = 'processing',
+            attempts = attempts + 1,
+            started_at = CURRENT_TIMESTAMP,
+            assigned_agent = 'DeepAgent',
+            session_id = $1,
+            metadata = $2
+        WHERE id = $3
+      `, [
+        session.session_id,
+        JSON.stringify({ ...task.metadata, session: session }),
+        task.id
+      ]);
+
+      await this.logExecution(
+        task.id,
+        task.goal_id,
+        'info',
+        `DeepAgent session spawned: ${session.session_id}`,
+        { session_id: session.session_id }
+      );
+
+      // Broadcast real-time update
+      this.gateway.broadcastExecutionStart(task.id, goal.id, session.session_id);
+
+      this.logger.log(`✅ Session ${session.session_id} spawned for goal ${goal.id}`);
 
     } catch (error) {
       this.logger.error(`❌ Task ${task.id} execution failed: ${error.message}`);
@@ -223,29 +347,10 @@ export class AutonomousOrchestratorService {
       `, [error.message, task.id]);
 
       await this.logExecution(task.id, task.goal_id, 'error', `Execution failed: ${error.message}`);
+
+      // Broadcast failure
+      this.gateway.broadcastExecutionError(task.id, task.goal_id, error.message);
     }
-  }
-
-  /**
-   * Simulate execution (temporary - will be replaced with real DeepAgent integration)
-   */
-  private async simulateExecution(task: ExecutionQueueItem, goal: Goal) {
-    const db = this.goalRepository.manager;
-
-    // Simulate some work
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // Mark as completed
-    await db.query(`
-      UPDATE execution_queue
-      SET status = 'completed',
-          completed_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-    `, [task.id]);
-
-    await this.logExecution(task.id, task.goal_id, 'success', 'Task completed successfully (simulated)');
-
-    this.logger.log(`✅ Task ${task.id} completed (simulated)`);
   }
 
   /**
@@ -312,7 +417,15 @@ export class AutonomousOrchestratorService {
   }
 
   /**
-   * Get queue status
+   * Broadcast status update to connected clients
+   */
+  private async broadcastStatus() {
+    const status = await this.getQueueStatus();
+    this.gateway.broadcastStatus(status);
+  }
+
+  /**
+   * Get queue status (Phase 4 - enhanced)
    */
   async getQueueStatus() {
     const db = this.goalRepository.manager;
@@ -332,10 +445,16 @@ export class AutonomousOrchestratorService {
       WHERE status IN ('queued', 'processing')
     `);
 
+    const activeSessions = this.realTimeSessionService.getActiveSessions();
+
     return {
       total: parseInt(total[0]?.count || 0),
       by_status: stats,
-      max_parallel: this.MAX_PARALLEL_EXECUTIONS,
+      max_parallel: this.maxParallelExecutions,
+      swarm_mode_active: this.swarmModeActive,
+      swarm_threshold: this.SWARM_ACTIVATION_THRESHOLD,
+      active_sessions: activeSessions.length,
+      sessions: activeSessions,
     };
   }
 
