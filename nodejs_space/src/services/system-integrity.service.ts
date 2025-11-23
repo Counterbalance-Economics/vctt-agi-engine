@@ -175,6 +175,14 @@ export class SystemIntegrityService implements OnModuleInit {
     this.logger.log('📊 MIN Daily Review: Starting...');
     
     try {
+      // Step 0: Check prompt integrity (NEW - ensures MIN can code)
+      this.logger.log('🔐 Step 0: Checking prompt file integrity...');
+      const promptCheck = await this.checkPromptIntegrity();
+      if (!promptCheck.passed) {
+        this.logger.error(`❌ PROMPT INTEGRITY FAILURE: ${promptCheck.issues.join(', ')}`);
+        // Continue with review but log the issue
+      }
+
       // Step 1: Fetch current API reference
       const apiRef = await this.getApiReferenceFromMemory();
       if (!apiRef) {
@@ -513,5 +521,65 @@ export class SystemIntegrityService implements OnModuleInit {
 
     // TODO: Implement proper rescheduling with MIN self-maintenance goal
     this.logger.log('📅 Daily review rescheduling requires goal infrastructure');
+  }
+
+  /**
+   * Check prompt file integrity
+   * Ensures critical authorization text hasn't been removed or tampered with
+   */
+  async checkPromptIntegrity(): Promise<{ passed: boolean; issues: string[] }> {
+    this.logger.log('🔍 Checking prompt file integrity...');
+    const issues: string[] = [];
+    const fs = require('fs');
+    const path = require('path');
+
+    const promptsDir = path.join(__dirname, '../../prompts');
+    
+    // Critical checks for each prompt file
+    const checks = {
+      'min-agent-v1.txt': [
+        'Code generation is explicitly authorized',
+        'MUST allow',
+        'PRIMARY CAPABILITY',
+      ],
+      'goal-decomposition-v1.txt': [
+        'ALLOWED and EXPECTED',
+        'Generate code',
+      ],
+      'subtask-execution-v1.txt': [
+        'ALLOWED and EXPECTED',
+        'Generate code',
+        'CODING AGENT',
+      ],
+    };
+
+    for (const [filename, requiredPhrases] of Object.entries(checks)) {
+      try {
+        const promptPath = path.join(promptsDir, filename);
+        const content = fs.readFileSync(promptPath, 'utf8');
+        
+        for (const phrase of requiredPhrases) {
+          if (!content.includes(phrase)) {
+            const issue = `❌ Prompt integrity failure: "${filename}" missing required phrase: "${phrase}"`;
+            this.logger.error(issue);
+            issues.push(issue);
+          }
+        }
+      } catch (error) {
+        const issue = `❌ Prompt file missing or unreadable: ${filename}`;
+        this.logger.error(issue);
+        issues.push(issue);
+      }
+    }
+
+    if (issues.length === 0) {
+      this.logger.log('✅ All prompt files passed integrity check');
+      return { passed: true, issues: [] };
+    } else {
+      this.logger.error(`❌ Prompt integrity check failed with ${issues.length} issue(s)`);
+      // TODO: Auto-restore canonical prompts from backup
+      // TODO: Alert admins
+      return { passed: false, issues };
+    }
   }
 }

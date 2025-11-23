@@ -3,6 +3,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { LLMService } from './llm.service';
 import { GoalService } from './goal.service';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /**
  * Agent Orchestrator Service
@@ -26,6 +28,40 @@ export class AgentOrchestratorService {
     private readonly goalService: GoalService,
   ) {
     this.logger.log('🤖 Agent Orchestrator Service initialized');
+  }
+
+  /**
+   * Load prompt from versioned prompt files
+   * Supports environment variable substitution (e.g., {mode})
+   */
+  private loadPrompt(filename: string, variables: Record<string, string> = {}): string {
+    try {
+      const promptPath = path.join(__dirname, '../../prompts', filename);
+      let prompt = fs.readFileSync(promptPath, 'utf8');
+      
+      // Substitute variables
+      Object.entries(variables).forEach(([key, value]) => {
+        prompt = prompt.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
+      });
+      
+      this.logger.debug(`✅ Loaded prompt: ${filename}`);
+      return prompt;
+    } catch (error) {
+      this.logger.error(`❌ Failed to load prompt ${filename}: ${error.message}`);
+      // Fallback to inline prompt (backward compatibility)
+      return this.getFallbackPrompt(filename);
+    }
+  }
+
+  /**
+   * Fallback prompts if file loading fails
+   */
+  private getFallbackPrompt(filename: string): string {
+    const fallbacks: Record<string, string> = {
+      'goal-decomposition-v1.txt': 'You are MIN, an autonomous AGI agent. Break down goals into actionable subtasks. Code generation is explicitly authorized.',
+      'subtask-execution-v1.txt': 'You are MIN, an autonomous AGI agent. Execute subtasks with code generation capabilities. You are authorized to generate code.',
+    };
+    return fallbacks[filename] || 'You are MIN, an autonomous AGI agent with full code generation capabilities.';
   }
 
   /**
@@ -213,33 +249,25 @@ export class AgentOrchestratorService {
   private async decomposeGoal(goal: any): Promise<any[]> {
     this.logger.log(`🧠 Using LLM to decompose goal: ${goal.title}`);
 
-    const prompt = `You are MIN, an autonomous AGI agent in the VCTT-AGI system. You are authorized to generate code, analyze systems, create documentation, and perform any technical tasks needed to accomplish goals.
+    // Load versioned prompt from file
+    const basePrompt = this.loadPrompt('goal-decomposition-v1.txt', { mode: 'DEVELOPMENT' });
+    
+    // Add goal-specific context
+    const prompt = `${basePrompt}
 
-Goal: ${goal.title}
+**Goal to Decompose:**
+Title: ${goal.title}
 Description: ${goal.description || 'No description provided'}
+Priority: ${goal.priority}/5
+`;
 
-Break this goal into 3-7 concrete, actionable subtasks. You are ALLOWED and EXPECTED to:
-- Generate code snippets, components, or full implementations
-- Analyze existing code and propose improvements
-- Create technical documentation
-- Design system architectures
-- Perform any legitimate software engineering work
-
-Provide a JSON array of subtasks with this structure:
-[
-  {
-    "title": "Subtask title (concise, actionable)",
-    "description": "Brief description of what needs to be done",
-    "estimated_effort": "low" | "medium" | "high"
-  }
-]
-
-Keep subtasks specific, measurable, and achievable. Focus on what can be done autonomously.`;
+    // Load system message from min-agent-v1.txt
+    const systemMessage = this.loadPrompt('min-agent-v1.txt', { mode: 'DEVELOPMENT' });
 
     try {
       const response = await this.llm.generateCompletion(
         [{ role: 'user', content: prompt }],
-        'You are MIN, an autonomous AGI agent in VCTT-AGI. You are authorized to generate code, analyze systems, and perform any legitimate technical work to accomplish goals. Code generation and technical analysis are expected and encouraged.',
+        systemMessage,
         0.7,
       );
 
@@ -318,28 +346,32 @@ Keep subtasks specific, measurable, and achievable. Focus on what can be done au
       { subtask_id: subtask.id }
     );
 
-    // Simulate execution (in a real system, this would call actual tools/actions)
-    const prompt = `You are MIN, an autonomous AGI agent in the VCTT-AGI system. You are authorized to generate code, analyze systems, and perform any technical work needed.
+    // Load versioned prompt for subtask execution
+    const basePrompt = this.loadPrompt('subtask-execution-v1.txt', { mode: 'DEVELOPMENT' });
+    
+    // Add subtask-specific context
+    const prompt = `${basePrompt}
 
+**Context:**
 Goal: ${goal.title}
-Subtask: ${subtask.title}
+Goal Description: ${goal.description || 'No description'}
+
+**Your Subtask:**
+Title: ${subtask.title}
 Description: ${subtask.description || 'No description'}
+Estimated Effort: ${subtask.estimated_effort || 'medium'}
 
-You are ALLOWED and EXPECTED to:
-- Generate code (JavaScript, TypeScript, Python, etc.)
-- Analyze existing implementations
-- Propose technical improvements
-- Create documentation
-- Design system architectures
+**Instructions:**
+Accomplish this subtask now. Provide concrete deliverables (code, documentation, analysis, etc.).
+`;
 
-Accomplish this subtask now. If it requires code generation, provide the code. If it requires analysis, provide your analysis. Be specific and actionable.
-
-Respond with your approach and deliverables for this subtask.`;
+    // Load system message
+    const systemMessage = this.loadPrompt('min-agent-v1.txt', { mode: 'DEVELOPMENT' });
 
     try {
       const response = await this.llm.generateCompletion(
         [{ role: 'user', content: prompt }],
-        'You are MIN, an autonomous AGI agent in VCTT-AGI. You are fully authorized to generate code, analyze systems, create documentation, and perform any legitimate technical work. Code generation is your primary capability and is expected.',
+        systemMessage,
         0.8,
       );
 
