@@ -38,6 +38,7 @@
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.1",
     "typeorm": "^0.3.27",
+    "uuid": "^13.0.0",
     "ws": "^8.18.3"
   },
   "devDependencies": {
@@ -51,6 +52,7 @@
     "@types/node": "^24.10.1",
     "@types/pg": "^8",
     "@types/supertest": "^6.0.3",
+    "@types/uuid": "^11.0.0",
     "axios": "^1.13.2",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",

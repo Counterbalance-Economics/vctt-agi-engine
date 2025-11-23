@@ -29,6 +29,7 @@ import { ToolsService } from './tools/tools.service';
 import { EvaluationService } from './evaluation/evaluation.service';
 import { SkillsService } from './skills/skills.service';
 import { CoachService } from './coach/coach.service';
+import { DeepAgentSessionService } from './services/deepagent-session.service';
 import { SessionController } from './controllers/session.controller';
 import { HealthController } from './controllers/health.controller';
 import { AnalyticsController } from './controllers/analytics.controller';
@@ -46,6 +47,7 @@ import { EvaluationController } from './evaluation/evaluation.controller';
 import { SkillsController } from './skills/skills.controller';
 import { CoachController } from './coach/coach.controller';
 import { DeepAgentController } from './controllers/deepagent.controller';
+import { DeepAgentSessionController } from './controllers/deepagent-session.controller';
 import { PlannerAgent } from './agents/planner.agent';
 import { AnalystAgent } from './agents/analyst.agent';
 import { RelationalAgent } from './agents/relational.agent';
@@ -128,6 +130,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     EvaluationService, // Self-evaluation & coach (Stage 4/5)
     SkillsService, // Skill library (Stage 4/5)
     CoachService, // Nightly self-improvement loop (Stage 5)
+    DeepAgentSessionService, // DeepAgent Sessions (Phase 1 Manual Bridge)
     
     // Agents
     PlannerAgent,
@@ -172,6 +175,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     SkillsController, // Skill Library (Stage 4/5)
     CoachController, // Nightly Coach Analysis (Stage 5)
     DeepAgentController, // DeepAgent Terminal (IDE)
+    DeepAgentSessionController, // DeepAgent Sessions API (Phase 1 Manual Bridge)
   ],
 })
 export class AppModule {}
