@@ -31,8 +31,11 @@ import { SkillsService } from './skills/skills.service';
 import { CoachService } from './coach/coach.service';
 import { DeepAgentSessionService } from './services/deepagent-session.service';
 import { SessionActivityService } from './services/session-activity.service';
+import { AutonomousOrchestratorService } from './services/autonomous-orchestrator.service';
+import { CoachExecutionService } from './services/coach-execution.service';
 import { SessionController } from './controllers/session.controller';
 import { SessionActivityController } from './controllers/session-activity.controller';
+import { AutonomousExecutionController } from './controllers/autonomous-execution.controller';
 import { HealthController } from './controllers/health.controller';
 import { AnalyticsController } from './controllers/analytics.controller';
 import { LLMCommitteeController } from './controllers/llm-committee.controller';
@@ -69,7 +72,10 @@ import { Conversation } from './entities/conversation.entity';
 import { Message } from './entities/message.entity';
 import { InternalState } from './entities/internal-state.entity';
 import { LLMContribution } from './entities/llm-contribution.entity';
+import { Goal } from './entities/goal.entity';
+import { Subtask } from './entities/subtask.entity';
 import { StreamingGateway } from './gateways/streaming.gateway';
+import { ExecutionGateway } from './gateways/execution.gateway';
 import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 
 @Module({
@@ -89,12 +95,12 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
           TypeOrmModule.forRoot({
             type: 'postgres',
             url: process.env.DATABASE_URL,
-            entities: [Conversation, Message, InternalState, LLMContribution],
-            synchronize: true, // Auto-create tables (disable in production)
+            entities: [Conversation, Message, InternalState, LLMContribution, Goal, Subtask],
+            synchronize: false, // Use migrations instead of auto-sync
             logging: process.env.NODE_ENV === 'development',
             ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
           }),
-          TypeOrmModule.forFeature([Conversation, Message, InternalState, LLMContribution]),
+          TypeOrmModule.forFeature([Conversation, Message, InternalState, LLMContribution, Goal, Subtask]),
         ]
       : []),
   ],
@@ -134,6 +140,8 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     CoachService, // Nightly self-improvement loop (Stage 5)
     DeepAgentSessionService, // DeepAgent Sessions (Phase 1 Manual Bridge)
     SessionActivityService, // Session Activity Tracking (Phase 2 Auto-Sync)
+    AutonomousOrchestratorService, // Autonomous Orchestrator (Phase 3 Full Autonomy)
+    CoachExecutionService, // Coach Execution Analysis (Phase 3 Full Autonomy)
     
     // Agents
     PlannerAgent,
@@ -156,8 +164,9 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     CostLimitGuard,
     RegulationGuard,
     
-    // WebSocket Gateway
+    // WebSocket Gateways
     StreamingGateway,
+    ExecutionGateway, // Real-time execution updates (Phase 3 Full Autonomy)
   ],
   
   controllers: [
@@ -180,6 +189,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     DeepAgentController, // DeepAgent Terminal (IDE)
     DeepAgentSessionController, // DeepAgent Sessions API (Phase 1 Manual Bridge)
     SessionActivityController, // Session Activity Tracking API (Phase 2 Auto-Sync)
+    AutonomousExecutionController, // Autonomous Execution API (Phase 3 Full Autonomy)
   ],
 })
 export class AppModule {}
