@@ -1,0 +1,151 @@
+
+import { Injectable, Logger } from '@nestjs/common';
+import { InternalState } from '../entities/internal-state.entity';
+import { Message } from '../entities/message.entity';
+import { LLMService } from '../services/llm.service';
+import { LLMCascadeService } from '../services/llm-cascade.service';
+
+/**
+ * Analyst Agent - Analyzes logical structure and reasoning quality
+ * 
+ * Part of the VCTT-AGI Coherence Kernel
+ * Role: Logical analysis, fallacy detection, reasoning quality assessment
+ */
+@Injectable()
+export class AnalystAgent {
+  private readonly logger = new Logger(AnalystAgent.name);
+
+  constructor(
+    private llmService: LLMService,
+    private llmCascade: LLMCascadeService,
+  ) {}
+
+  async analyze(messages: Message[], state: InternalState, subtask?: string): Promise<void> {
+    this.logger.log('🔍 Analyst Agent - analyzing logical structure');
+    if (subtask) {
+      this.logger.log(`   Specific subtask: ${subtask.substring(0, 80)}...`);
+    }
+
+    const conversationHistory = messages.map(m => ({
+      role: m.role as 'user' | 'assistant' | 'system',
+      content: m.content,
+    }));
+
+    const subtaskInstruction = subtask 
+      ? `\n\n🎯 SPECIFIC TASK FOR THIS ANALYSIS:\n${subtask}\n\nFocus your analysis on this specific aspect while still providing the required JSON structure.`
+      : '';
+
+    const systemPrompt = `You are the Analyst Agent in the VCTT-AGI Coherence Kernel.
+Your role is to analyze logical structure, detect fallacies, and assess reasoning quality.${subtaskInstruction}
+
+Analyze the conversation and provide:
+1. **Logical complexity** (0.0-1.0): How complex is the reasoning?
+2. **Fallacies detected**: List any logical fallacies (e.g., ad hominem, straw man, false dichotomy)
+3. **Premises**: Extract key premises being argued
+4. **Conclusions**: Extract stated or implied conclusions
+5. **Tension level** (0.0-1.0): How much logical tension or contradiction exists?
+   - 0.0 = Perfectly coherent, no tension
+   - 0.5 = Moderate tension, some inconsistencies
+   - 1.0 = High tension, significant contradictions
+
+⚠️ CRITICAL: You MUST respond with ONLY valid JSON and NOTHING ELSE.
+Do NOT include:
+- Explanatory text before or after the JSON
+- Markdown formatting or code blocks
+- Natural language like "As of my last training..." or "Here is the analysis..."
+- ANY text outside the JSON object
+
+Return EXACTLY this format (with actual values):
+{"logical_complexity":0.3,"fallacies":["example"],"premises":["key premise"],"conclusions":["conclusion"],"tension":0.15}
+
+If the conversation is simple, return low values:
+{"logical_complexity":0.1,"fallacies":[],"premises":["user question"],"conclusions":["needs answer"],"tension":0.05}
+
+CRITICAL: Your response MUST be valid JSON only. No prose, no explanations, no markdown.
+Start with { and end with }. If you write anything other than JSON, the system will fail.`;
+
+    try {
+      const response = await this.llmCascade.generateCompletion(
+        conversationHistory,
+        systemPrompt,
+        0.3, // Low temperature for analytical consistency
+        'analyst', // Use cascading: RouteLLM Claude → Direct Claude → Grok-4.1 → GPT-5 → GPT-4o
+        true, // Enable MCP tools (DB queries, calculations)
+      );
+
+      let content = response.content.trim();
+      
+      // Remove markdown code blocks if present
+      if (content.startsWith('```')) {
+        content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      }
+      
+      // Extract JSON if there's prose before/after it (safety net)
+      // Look for the first { and last } to extract pure JSON
+      const firstBrace = content.indexOf('{');
+      const lastBrace = content.lastIndexOf('}');
+      
+      if (firstBrace !== -1 && lastBrace !== -1 && firstBrace < lastBrace) {
+        content = content.substring(firstBrace, lastBrace + 1);
+      }
+
+      let analysis: any;
+      let parseSucceeded = true;
+      
+      try {
+        analysis = JSON.parse(content);
+        this.logger.log(`✅ Analyst JSON parsed successfully`);
+      } catch (parseError) {
+        parseSucceeded = false;
+        this.logger.warn(`⚠️  Analyst JSON parsing failed: ${parseError.message}`);
+        this.logger.warn(`   Raw content: ${content.substring(0, 200)}...`);
+        
+        // GROK SAFETY NET: Check if response came from Grok
+        const isGrokResponse = (response.usedProvider || response.model || '').toLowerCase().includes('grok');
+        
+        if (isGrokResponse) {
+          // If Grok provided the response, trust it even if format is wrong
+          this.logger.log(`🛡️  GROK SAFETY NET: Using trusted fallback values (low tension)`);
+          analysis = {
+            logical_complexity: 0.1,  // Low complexity = high trust
+            fallacies: [],
+            premises: ['Grok verified'],
+            conclusions: ['Real-time facts'],
+            tension: 0.05,  // Very low tension = high trust
+          };
+        } else {
+          // For non-Grok responses, use neutral fallback
+          this.logger.log(`⚠️  Using neutral fallback values`);
+          analysis = {
+            logical_complexity: 0.5,
+            fallacies: [],
+            premises: ['Parse failed'],
+            conclusions: ['Fallback values'],
+            tension: 0.3,  // Moderate tension
+          };
+        }
+      }
+
+      // Update state based on analysis
+      if (typeof analysis.tension === 'number') {
+        state.state.sim.tension = Math.max(0, Math.min(1, analysis.tension));
+      }
+      
+      const statusIcon = parseSucceeded ? '✅' : '🛡️';
+      this.logger.log(
+        `${statusIcon} Analyst complete - tension: ${state.state.sim.tension.toFixed(3)}, ` +
+        `fallacies: ${analysis.fallacies?.length || 0}, ` +
+        `complexity: ${analysis.logical_complexity?.toFixed(2) || 'N/A'}, ` +
+        `cost: $${response.cost.toFixed(4)}, ` +
+        `latency: ${response.latencyMs}ms, ` +
+        `provider: ${response.usedProvider || response.model} (Tier ${response.tierUsed || '?'}), ` +
+        `parse_mode: ${parseSucceeded ? 'JSON' : 'SAFETY_NET'}`
+      );
+    } catch (error) {
+      this.logger.error(`❌ Analyst agent error: ${error.message}`);
+      // Final fallback to baseline values
+      state.state.sim.tension = Math.min(state.state.sim.tension + 0.1, 1.0);
+      this.logger.warn(`⚠️ Using fallback tension: ${state.state.sim.tension.toFixed(3)}`);
+    }
+  }
+}

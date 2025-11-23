@@ -5,6 +5,7 @@ import { PriorityEngineService } from '../services/priority-engine.service';
 import { LLMCoachService } from '../services/llm-coach.service';
 import { RealTimeSessionService } from '../services/realtime-session.service';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { DataSource } from 'typeorm';
 
 /**
  * Autonomous Execution Controller - Phase 4
@@ -26,6 +27,7 @@ export class AutonomousExecutionController {
     private readonly priorityEngine: PriorityEngineService,
     private readonly coachService: LLMCoachService,
     private readonly sessionService: RealTimeSessionService,
+    private readonly dataSource: DataSource,
   ) {
     this.logger.log('🤖 Autonomous Execution Controller initialized (Phase 4 - Full Reality)');
   }
@@ -273,6 +275,95 @@ export class AutonomousExecutionController {
       return {
         success: false,
         error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Run database migration to create execution tables
+   * POST /api/autonomous/migrate
+   * ADMIN ONLY - Run this once to set up production database
+   */
+  @Post('migrate')
+  @ApiOperation({ summary: 'Create execution queue tables (ADMIN ONLY - run once)' })
+  @ApiResponse({ status: 200, description: 'Migration completed' })
+  async runMigration() {
+    try {
+      this.logger.log('🔧 Running execution queue migration...');
+
+      // Create execution_queue table
+      await this.dataSource.query(`
+        CREATE TABLE IF NOT EXISTS execution_queue (
+          id SERIAL PRIMARY KEY,
+          goal_id INTEGER REFERENCES goals(id) ON DELETE CASCADE,
+          subtask_id INTEGER,
+          priority INTEGER DEFAULT 3,
+          status VARCHAR(20) DEFAULT 'queued',
+          attempts INTEGER DEFAULT 0,
+          max_attempts INTEGER DEFAULT 3,
+          assigned_agent VARCHAR(255),
+          session_id VARCHAR(255),
+          error_message TEXT,
+          queued_at TIMESTAMP DEFAULT NOW(),
+          started_at TIMESTAMP,
+          completed_at TIMESTAMP,
+          metadata JSONB DEFAULT '{}',
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        );
+      `);
+      this.logger.log('✅ execution_queue table created');
+
+      // Create execution_logs table
+      await this.dataSource.query(`
+        CREATE TABLE IF NOT EXISTS execution_logs (
+          id SERIAL PRIMARY KEY,
+          queue_id INTEGER REFERENCES execution_queue(id) ON DELETE CASCADE,
+          goal_id INTEGER REFERENCES goals(id) ON DELETE CASCADE,
+          log_level VARCHAR(20) DEFAULT 'info',
+          message TEXT NOT NULL,
+          details JSONB DEFAULT '{}',
+          timestamp TIMESTAMP DEFAULT NOW()
+        );
+      `);
+      this.logger.log('✅ execution_logs table created');
+
+      // Create agent_pool table
+      await this.dataSource.query(`
+        CREATE TABLE IF NOT EXISTS agent_pool (
+          id SERIAL PRIMARY KEY,
+          agent_id VARCHAR(255) UNIQUE NOT NULL,
+          status VARCHAR(20) DEFAULT 'idle',
+          current_goal_id INTEGER,
+          current_session_id VARCHAR(255),
+          capabilities JSONB DEFAULT '[]',
+          last_active TIMESTAMP DEFAULT NOW(),
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+      `);
+      this.logger.log('✅ agent_pool table created');
+
+      // Create indexes for performance
+      await this.dataSource.query(`
+        CREATE INDEX IF NOT EXISTS idx_execution_queue_status ON execution_queue(status);
+        CREATE INDEX IF NOT EXISTS idx_execution_queue_goal ON execution_queue(goal_id);
+        CREATE INDEX IF NOT EXISTS idx_execution_logs_goal ON execution_logs(goal_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_pool_status ON agent_pool(status);
+      `);
+      this.logger.log('✅ Indexes created');
+
+      return {
+        success: true,
+        message: 'Database migration completed successfully',
+        tables_created: ['execution_queue', 'execution_logs', 'agent_pool'],
+        indexes_created: 4,
+      };
+    } catch (error) {
+      this.logger.error(`Migration failed: ${error.message}`);
+      return {
+        success: false,
+        error: error.message,
+        hint: 'Tables may already exist. Check error details.',
       };
     }
   }

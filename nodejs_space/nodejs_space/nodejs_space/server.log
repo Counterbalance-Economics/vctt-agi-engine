@@ -1,0 +1,36 @@
+/home/ubuntu/.local/lib/python3.11/site-packages/pydantic/_internal/_config.py:318: UserWarning: Valid config keys have changed in V2:
+* 'schema_extra' has been renamed to 'json_schema_extra'
+  warnings.warn(message, UserWarning)
+INFO:     Started server process [1745]
+INFO:     Waiting for application startup.
+2025-11-16 18:27:54 - vctt_agi.api.main - INFO - Starting VCTT-AGI Engine API
+2025-11-16 18:27:54,169 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2025-11-16 18:27:54 - sqlalchemy.engine.Engine - INFO - BEGIN (implicit)
+2025-11-16 18:27:54,169 INFO sqlalchemy.engine.Engine SELECT 1
+2025-11-16 18:27:54 - sqlalchemy.engine.Engine - INFO - SELECT 1
+2025-11-16 18:27:54,169 INFO sqlalchemy.engine.Engine [generated in 0.00020s] ()
+2025-11-16 18:27:54 - sqlalchemy.engine.Engine - INFO - [generated in 0.00020s] ()
+2025-11-16 18:27:54,169 INFO sqlalchemy.engine.Engine ROLLBACK
+2025-11-16 18:27:54 - sqlalchemy.engine.Engine - INFO - ROLLBACK
+2025-11-16 18:27:54 - vctt_agi.api.main - INFO - Database connection successful
+2025-11-16 18:27:54 - vctt_agi.api.main - INFO - API running at 0.0.0.0:8000
+2025-11-16 18:27:54 - vctt_agi.api.main - INFO - Documentation available at http://0.0.0.0:8000/docs
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-11-16 18:28:03,341 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2025-11-16 18:28:03 - sqlalchemy.engine.Engine - INFO - BEGIN (implicit)
+2025-11-16 18:28:03,342 INFO sqlalchemy.engine.Engine SELECT 1
+2025-11-16 18:28:03 - sqlalchemy.engine.Engine - INFO - SELECT 1
+2025-11-16 18:28:03,342 INFO sqlalchemy.engine.Engine [cached since 9.173s ago] ()
+2025-11-16 18:28:03 - sqlalchemy.engine.Engine - INFO - [cached since 9.173s ago] ()
+2025-11-16 18:28:03,342 INFO sqlalchemy.engine.Engine ROLLBACK
+2025-11-16 18:28:03 - sqlalchemy.engine.Engine - INFO - ROLLBACK
+INFO:     127.0.0.1:38940 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55282 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55284 - "GET /metrics HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58198 - "GET /docs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58198 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     100.96.124.69:51108 - "GET / HTTP/1.1" 200 OK
+INFO:     100.96.124.69:51108 - "GET / HTTP/1.1" 200 OK
+INFO:     100.96.124.69:51110 - "GET / HTTP/1.1" 200 OK
+INFO:     100.96.124.69:51110 - "GET / HTTP/1.1" 200 OK

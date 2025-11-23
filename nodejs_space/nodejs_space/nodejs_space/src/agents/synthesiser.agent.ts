@@ -176,7 +176,7 @@ Respond with verified facts only.`;
       return {
         content: directResponse,
         metadata: {
-          model: 'grok-4.1-direct',
+          model: 'grok-4',
           tokens_input: 0,
           tokens_output: Math.round(directResponse.length / 4), // Rough estimate (integer)
           tokens_total: Math.round(directResponse.length / 4), // Rough estimate (integer)

@@ -1,0 +1,338 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VCTT-AGI WebSocket Streaming Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        .content {
+            padding: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .response-area {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            min-height: 200px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .response-area h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        .response-text {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #333;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .status {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.streaming {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .metadata {
+            margin-top: 15px;
+            padding: 12px;
+            background: white;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #666;
+        }
+        .metadata div {
+            margin: 5px 0;
+        }
+        .cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1.2em;
+            background: #667eea;
+            animation: blink 1s step-end infinite;
+            vertical-align: text-bottom;
+            margin-left: 2px;
+        }
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌊 VCTT-AGI WebSocket Streaming Test</h1>
+            <p>Real-time token-by-token LLM responses</p>
+        </div>
+        
+        <div class="content">
+            <div id="status" class="status disconnected">
+                ⚫ Disconnected
+            </div>
+            
+            <div class="form-group">
+                <label for="serverUrl">WebSocket Server URL</label>
+                <input type="text" id="serverUrl" value="ws://localhost:3000/stream" placeholder="ws://localhost:3000/stream">
+            </div>
+            
+            <div class="form-group">
+                <label for="message">Your Message</label>
+                <textarea id="message" placeholder="Ask anything...">Explain quantum entanglement in simple terms</textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="agentRole">Agent Role</label>
+                <select id="agentRole">
+                    <option value="">Primary (GPT-4o)</option>
+                    <option value="analyst">Analyst (MCP enabled)</option>
+                    <option value="relational">Relational</option>
+                    <option value="ethics">Ethics</option>
+                    <option value="synthesiser">Synthesiser (MCP enabled)</option>
+                    <option value="verification">Verification (Grok-4.1)</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="temperature">Temperature (0-2)</label>
+                <input type="number" id="temperature" min="0" max="2" step="0.1" value="0.7">
+            </div>
+            
+            <button id="connectBtn" onclick="connect()">Connect & Send</button>
+            
+            <div class="response-area">
+                <h3>📝 Response:</h3>
+                <div id="response" class="response-text"></div>
+                <div id="metadata" class="metadata" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        let socket = null;
+        let isStreaming = false;
+        
+        function updateStatus(message, className) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + className;
+        }
+        
+        function connect() {
+            if (isStreaming) {
+                alert('Already streaming. Please wait for completion.');
+                return;
+            }
+            
+            const serverUrl = document.getElementById('serverUrl').value;
+            const message = document.getElementById('message').value;
+            const agentRole = document.getElementById('agentRole').value;
+            const temperature = parseFloat(document.getElementById('temperature').value);
+            
+            if (!message.trim()) {
+                alert('Please enter a message');
+                return;
+            }
+            
+            // Clear previous response
+            document.getElementById('response').innerHTML = '';
+            document.getElementById('metadata').style.display = 'none';
+            
+            // Connect to WebSocket
+            updateStatus('🔌 Connecting...', 'disconnected');
+            socket = io(serverUrl, {
+                transports: ['websocket'],
+                reconnection: false,
+            });
+            
+            socket.on('connect', () => {
+                console.log('✅ Connected to WebSocket server');
+                updateStatus('✅ Connected - Sending request...', 'connected');
+                
+                // Send stream request
+                const request = {
+                    message,
+                    temperature,
+                };
+                
+                if (agentRole) {
+                    request.agentRole = agentRole;
+                }
+                
+                socket.emit('stream_request', request);
+            });
+            
+            socket.on('stream_start', (data) => {
+                console.log('🌊 Stream started:', data);
+                updateStatus(`🌊 Streaming from ${data.model}...`, 'streaming');
+                isStreaming = true;
+                document.getElementById('connectBtn').disabled = true;
+                
+                // Add blinking cursor
+                document.getElementById('response').innerHTML = '<span class="cursor"></span>';
+            });
+            
+            socket.on('stream_chunk', (data) => {
+                console.log('📦 Chunk received:', data.chunk);
+                const responseDiv = document.getElementById('response');
+                // Remove cursor
+                const cursor = responseDiv.querySelector('.cursor');
+                if (cursor) cursor.remove();
+                // Append chunk and add cursor back
+                responseDiv.innerHTML += data.chunk;
+                responseDiv.innerHTML += '<span class="cursor"></span>';
+                // Scroll to bottom
+                responseDiv.parentElement.scrollTop = responseDiv.parentElement.scrollHeight;
+            });
+            
+            socket.on('stream_complete', (data) => {
+                console.log('✅ Stream complete:', data);
+                updateStatus('✅ Stream Complete', 'connected');
+                isStreaming = false;
+                document.getElementById('connectBtn').disabled = false;
+                
+                // Remove cursor
+                const responseDiv = document.getElementById('response');
+                const cursor = responseDiv.querySelector('.cursor');
+                if (cursor) cursor.remove();
+                
+                // Show metadata
+                const metadataDiv = document.getElementById('metadata');
+                metadataDiv.style.display = 'block';
+                metadataDiv.innerHTML = `
+                    <div><strong>Session ID:</strong> ${data.sessionId}</div>
+                    <div><strong>Total Tokens:</strong> ${data.totalTokens}</div>
+                    <div><strong>Total Cost:</strong> $${data.totalCost.toFixed(4)}</div>
+                    <div><strong>Latency:</strong> ${data.latencyMs}ms</div>
+                `;
+                
+                // Disconnect
+                socket.disconnect();
+            });
+            
+            socket.on('stream_error', (data) => {
+                console.error('❌ Stream error:', data);
+                updateStatus(`❌ Error: ${data.error}`, 'disconnected');
+                isStreaming = false;
+                document.getElementById('connectBtn').disabled = false;
+                
+                const responseDiv = document.getElementById('response');
+                responseDiv.innerHTML = `<strong style="color: #dc3545;">Error:</strong> ${data.error}`;
+                
+                socket.disconnect();
+            });
+            
+            socket.on('disconnect', () => {
+                console.log('🔌 Disconnected from WebSocket server');
+                if (!isStreaming) {
+                    updateStatus('⚫ Disconnected', 'disconnected');
+                }
+            });
+            
+            socket.on('connect_error', (error) => {
+                console.error('❌ Connection error:', error);
+                updateStatus(`❌ Connection failed: ${error.message}`, 'disconnected');
+                document.getElementById('connectBtn').disabled = false;
+            });
+        }
+    </script>
+</body>
+</html>

@@ -56,7 +56,7 @@ export interface AuditLogEntry {
 export class SafetyStewardAgent {
   private readonly logger = new Logger(SafetyStewardAgent.name);
   
-  private currentMode: OperationMode = OperationMode.RESEARCH;
+  private currentMode: OperationMode = OperationMode.DEVELOPMENT;
   private killSwitchActive: boolean = false;
   private killSwitchActivatedAt?: Date;
   private killSwitchReason?: string;

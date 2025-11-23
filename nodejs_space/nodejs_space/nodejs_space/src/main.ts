@@ -1,86 +1,83 @@
-
+// src/main.ts — FINAL PRODUCTION VERSION (CORS + NestJS v11 + Safety + Swagger)
 import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { AppModule } from './app.module';
+import { json, urlencoded } from 'express';
+import { SafetyStewardAgent } from './agents/safety-steward.agent';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ['log', 'error', 'warn', 'debug', 'verbose'],
   });
 
-  // Enable CORS
-  app.enableCors({
-    origin: '*',
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    credentials: true,
-  });
-
-  // Global validation pipe - whitelist strips unknown props, forbidNonWhitelisted=false allows them silently
+  // Global validation
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: false, // Allow unknown params like _cb (cache-busting) to be stripped silently
       transform: true,
-      transformOptions: {
-        enableImplicitConversion: true, // Auto-convert string "50" → number 50
-      },
+      forbidNonWhitelisted: false,
     }),
   );
 
-  // Swagger documentation
+  // FULL CORS FIX — explicit Vercel origins + localhost
+  app.enableCors({
+    origin: [
+      /^https:\/\/vcttagi-.*\.vercel\.app$/,
+      /^https:\/\/vctt-agi-.*\.vercel\.app$/,
+      'https://vcttagiui.vercel.app',
+      'https://vcttagi.vercel.app',
+      'https://vctt-agi-ui.vercel.app',
+      'http://localhost:3000',
+      'http://localhost:5173',
+    ],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+    allowedHeaders: 'Content-Type, Authorization',
+  });
+
+  // Body size limits
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ limit: '50mb', extended: true }));
+
+  // Swagger
   const config = new DocumentBuilder()
-    .setTitle('VCTT-AGI Coherence Kernel')
-    .setDescription(
-      'Phase 2: Full VCTT-AGI Engine with PostgreSQL, persistent memory, session history, ' +
-      'cross-session analytics, and trust metric visualization. Includes 4 Agents (Analyst, Relational, ' +
-      'Ethics, Synthesiser) and 5 Modules (SIM, CAM, SRE, CTM, RIL). Features repair loop with max 3 ' +
-      'iterations and trust metric calculation.'
-    )
-    .setVersion('2.0.0')
-    .addTag('session', 'Session management and conversation endpoints')
-    .addTag('health', 'Service health monitoring')
-    .addTag('analytics', 'Session history, analytics, and cross-session patterns')
+    .setTitle('VCTT-AGI Backend API')
+    .setDescription('Tier-5 Self-Improving AGI Backend')
+    .setVersion('1.0')
+    .addTag('safety')
+    .addTag('goals')
+    .addTag('scheduler')
+    .addTag('coach')
+    .addTag('skills')
     .build();
-
   const document = SwaggerModule.createDocument(app, config);
-  
-  // Setup Swagger at both /api and /api-docs
-  const swaggerOptions = {
-    customSiteTitle: 'VCTT-AGI API Docs',
-    customCss: '.swagger-ui .topbar { display: none }',
-  };
-  
-  SwaggerModule.setup('api', app, document, swaggerOptions);
-  SwaggerModule.setup('api-docs', app, document, swaggerOptions);
+  SwaggerModule.setup('api-docs', app, document);
 
-  const port = process.env.PORT || 8000;
-  const host = '0.0.0.0';
+  // SafetySteward boot
+  const safety = app.get(SafetyStewardAgent);
+  console.log('SafetySteward Loaded — Mode:', safety.getMode());
+
+  // Enhanced Startup Banner with Instance Identity
+  const platform = process.env.DEPLOYMENT_PLATFORM || 'unknown';
+  const role = process.env.DEPLOYMENT_ROLE || 'unknown';
+  const instanceName = process.env.INSTANCE_NAME || 'unknown-instance';
+  const frontendUrl = process.env.CONNECTED_FRONTEND || 'unknown';
   
-  // Start listening BEFORE any console logs
-  await app.listen(port, host);
-  
-  const databaseStatus = process.env.DATABASE_URL ? '✅ Connected' : '⚠️  Disabled (no DATABASE_URL)';
-  
-  // Log server startup
-  console.log('');
-  console.log('═══════════════════════════════════════════════════════════');
-  console.log('  🧠 VCTT-AGI COHERENCE KERNEL - PHASE 3');
-  console.log('═══════════════════════════════════════════════════════════');
-  console.log(`  🚀 Service running on: http://${host}:${port}`);
-  console.log(`  📚 Swagger UI: http://${host}:${port}/api`);
-  console.log(`  ❤️  Health Check: http://${host}:${port}/health`);
-  console.log(`  🗄️  Database: ${databaseStatus}`);
-  console.log('═══════════════════════════════════════════════════════════');
-  console.log('  Agents: Analyst | Relational | Ethics | Synthesiser');
-  console.log('  Modules: SIM | CAM | SRE | CTM | RIL');
-  console.log('  Max Repairs: 3 | Trust Formula: τ = 1 - (0.4T + 0.3U + 0.3C)');
-  console.log('═══════════════════════════════════════════════════════════');
-  console.log('');
-  console.log(`✅ Server successfully started and listening on ${host}:${port}`);
+  console.log('\n');
+  console.log('╔════════════════════════════════════════════════════════════════╗');
+  console.log(`║  VCTT-AGI Engine (MIN) - ${role.toUpperCase().padEnd(28)} BACKEND  ║`);
+  console.log('╠════════════════════════════════════════════════════════════════╣');
+  console.log(`║  Instance:  ${instanceName.padEnd(49)} ║`);
+  console.log(`║  Platform:  ${platform.padEnd(49)} ║`);
+  console.log(`║  Role:      ${role.padEnd(49)} ║`);
+  console.log(`║  Frontend:  ${frontendUrl.substring(0, 49).padEnd(49)} ║`);
+  console.log('╚════════════════════════════════════════════════════════════════╝');
+  console.log('\n');
+
+  const port = process.env.PORT || 3000;
+  await app.listen(port);
+  console.log(`🚀 VCTT-AGI Backend LIVE on port ${port}`);
 }
 
-bootstrap().catch((error) => {
-  console.error('❌ Fatal error during bootstrap:', error);
-  process.exit(1);
-});
+bootstrap();

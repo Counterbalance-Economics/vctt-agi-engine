@@ -1,5 +1,5 @@
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { LLMContribution } from '../entities/llm-contribution.entity';
@@ -17,10 +17,10 @@ export class LLMCommitteeService {
   private readonly logger = new Logger(LLMCommitteeService.name);
 
   constructor(
-    @InjectRepository(LLMContribution)
-    private readonly contributionRepo: Repository<LLMContribution>,
-    @InjectRepository(Message)
-    private readonly messageRepo: Repository<Message>,
+    @Optional() @InjectRepository(LLMContribution)
+    private readonly contributionRepo: Repository<LLMContribution> | null,
+    @Optional() @InjectRepository(Message)
+    private readonly messageRepo: Repository<Message> | null,
   ) {}
 
   /**
@@ -38,6 +38,11 @@ export class LLMCommitteeService {
     cost_usd?: number;
     latency_ms?: number;
   }): Promise<void> {
+    if (!this.contributionRepo) {
+      this.logger.debug('Database not available - skipping contribution recording');
+      return;
+    }
+    
     try {
       const contribution = new LLMContribution();
       contribution.session_id = data.session_id;
@@ -67,6 +72,16 @@ export class LLMCommitteeService {
    * Get LLM Committee statistics for a specific session
    */
   async getSessionStats(sessionId: string): Promise<SessionCommitteeStatsDto> {
+    if (!this.contributionRepo || !this.messageRepo) {
+      this.logger.debug('Database not available - returning empty stats');
+      return {
+        session_id: sessionId,
+        total_questions: 0,
+        models: [],
+        generated_at: new Date(),
+      };
+    }
+    
     this.logger.log(`Getting LLM Committee stats for session: ${sessionId}`);
 
     // Get all contributions for this session
@@ -148,6 +163,17 @@ export class LLMCommitteeService {
    * Get global LLM Committee statistics (last N questions)
    */
   async getGlobalStats(limit: number = 50): Promise<GlobalCommitteeStatsDto> {
+    if (!this.contributionRepo || !this.messageRepo) {
+      this.logger.debug('Database not available - returning empty global stats');
+      return {
+        questions_analyzed: 0,
+        time_range_start: new Date(),
+        time_range_end: new Date(),
+        models: [],
+        generated_at: new Date(),
+      };
+    }
+    
     this.logger.log(`Getting global LLM Committee stats (last ${limit} questions)`);
 
     // Get the last N user messages (questions)

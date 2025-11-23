@@ -27,6 +27,7 @@
     "dist",
     "src/evaluation",
     "src/skills",
-    "prisma/seed-skills.ts.disabled"
+    "prisma/seed-skills.ts.disabled",
+    "nodejs_space"
   ]
 }
