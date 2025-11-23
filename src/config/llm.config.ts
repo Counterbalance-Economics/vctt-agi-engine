@@ -29,7 +29,14 @@ export const LLMConfig = {
     // Legacy/fallback models
     primary: 'gpt-4o',                          // Default for non-agent use
     fallback: 'gpt-4o-mini',                    // Fallback to GPT-4o-mini (faster/cheaper)
-    verification: 'grok-4-0709',                 // Grok 4 (July 2024) - full reasoning model for truth verification
+    
+    // 🥁 GROK VERIFIER - Truth Anchor & Drummer
+    // Using: 'grok-4-1-fast-reasoning' (Grok 4.1 Fast - Nov 2025, optimized for reasoning)
+    verification: 'grok-4-1-fast-reasoning',    // Grok 4.1 Fast Reasoning (2M context, state-of-the-art tool calling)
+    
+    // 🎵 JAZZ TEAM - Self-Improvement Analysis
+    // Using: 'grok-4-1-fast-reasoning' for deep counterfactual analysis
+    jazz: 'grok-4-1-fast-reasoning',            // Grok 4.1 for Voice/Choice/Transparency/Trust analysis
   },
   
   // MCP Tool Configuration (ENABLED - schemas fixed per Claude requirements)
@@ -94,9 +101,25 @@ export const LLMConfig = {
       inputPer1k: 0.005,         // $5.00 per 1M input tokens (legacy, deprecated)
       outputPer1k: 0.015,        // $15.00 per 1M output tokens
     },
-    'grok-4-0709': {
+    // GROK FAMILY (xAI API) - Cheapest frontier models
+    // xAI pricing: $2.00 per 1M input, $10.00 per 1M output (grok-beta)
+    'grok-beta': {
+      inputPer1k: 0.002,         // $2.00 per 1M input tokens - CURRENT STABLE
+      outputPer1k: 0.010,        // $10.00 per 1M output tokens
+    },
+    'grok-4': {
       inputPer1k: 0.002,         // $2.00 per 1M input tokens
       outputPer1k: 0.010,        // $10.00 per 1M output tokens
+    },
+    // GROK 4.1 FAST (xAI API) - Nov 2025 release, optimized for reasoning & tool calling
+    // 2M token context window, $0.20 per 1M input, $0.50 per 1M output
+    'grok-4-1-fast-reasoning': {
+      inputPer1k: 0.0002,        // $0.20 per 1M input tokens (90% cheaper than Grok 2!)
+      outputPer1k: 0.0005,       // $0.50 per 1M output tokens (95% cheaper than Grok 2!)
+    },
+    'grok-4-1-fast-non-reasoning': {
+      inputPer1k: 0.0002,        // $0.20 per 1M input tokens
+      outputPer1k: 0.0005,       // $0.50 per 1M output tokens
     },
     // Default for auto-routed models (RouteLLM will pick optimal Claude)
     '': {

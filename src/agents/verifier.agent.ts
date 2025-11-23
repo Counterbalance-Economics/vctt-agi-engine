@@ -1,12 +1,13 @@
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Message } from '../entities/message.entity';
 import { InternalState } from '../entities/internal-state.entity';
 import { LLMService } from '../services/llm.service';
 import { TruthMyceliumService, VerifiedFact } from '../services/truth-mycelium.service';
+import { LLMCommitteeService } from '../services/llm-committee.service';
 
 /**
- * 🥁🍄 VERIFIER AGENT (Grok-4-Fast-Reasoning) - The Drummer & Living Root System
+ * 🥁🍄 VERIFIER AGENT (Grok 4.1 Fast Reasoning) - The Drummer & Living Root System
  * 
  * DUAL ROLE:
  * 1. Drummer: Real-time fact-checking during Band Jam Mode
@@ -14,6 +15,12 @@ import { TruthMyceliumService, VerifiedFact } from '../services/truth-mycelium.s
  * 
  * Weight: 20% base, 30% for factual queries
  * Veto: Triggers re-jam if confidence < 0.8
+ * 
+ * Current Model: grok-4-1-fast-reasoning (Nov 2025)
+ *   - 2M token context window (vs 128k in Grok 2)
+ *   - 90% cheaper ($0.20/M input vs $2.00/M)
+ *   - State-of-the-art reasoning and tool calling
+ *   - Optimized for high-performance agentic tasks
  * 
  * Every verified fact is stored in the mycelium, creating a living, growing
  * substrate of truth that all future conversations can build upon.
@@ -38,6 +45,7 @@ export class VerifierAgent {
   constructor(
     private llmService: LLMService,
     private truthMycelium: TruthMyceliumService,
+    @Optional() private committeeService: LLMCommitteeService | null,
   ) {}
 
   /**
@@ -83,10 +91,10 @@ export class VerifierAgent {
           corrections: parsed.corrections || [],
           latency: Date.now() - startTime,
           cost: verification.cost,
-          model: 'grok-4-0709',
+          model: verification.model || 'grok', // Use actual model from API response
         };
 
-        this.logger.log(`✅ Verifier JSON parsed successfully`);
+        this.logger.log(`✅ Verifier JSON parsed successfully (model: ${verification.model})`);
       } catch (parseError) {
         // GROK SAFETY NET: If parsing fails, use raw Grok content anyway
         this.logger.warn(`⚠️  Verifier JSON parsing failed: ${parseError.message}`);
@@ -100,7 +108,7 @@ export class VerifierAgent {
           corrections: [],
           latency: Date.now() - startTime,
           cost: verification.cost,
-          model: 'grok-4-0709',
+          model: verification.model || 'grok', // Use actual model from API response
         };
       }
 
@@ -111,7 +119,7 @@ export class VerifierAgent {
           fact,
           confidence: verifiedData.confidence,
           sources: verifiedData.sources,
-          verifiedBy: 'grok-4-0709',
+          verifiedBy: verifiedData.model || 'grok', // Use actual model name with fallback
           timestamp: new Date(),
         }));
 
@@ -128,8 +136,24 @@ export class VerifierAgent {
         `discrepancy: ${verifiedData.hasDiscrepancy}, ` +
         `facts: ${verifiedData.verified_facts.length}, ` +
         `cost: $${verifiedData.cost?.toFixed(4) || '0.0000'}, ` +
-        `latency: ${verifiedData.latency}ms`,
+        `latency: ${verifiedData.latency}ms, ` +
+        `model: ${verifiedData.model}`,
       );
+
+      // 🎸 RECORD CONTRIBUTION: Track Grok verification in LLM Committee
+      if (this.committeeService) {
+        await this.committeeService.recordContribution({
+          session_id: messages[0]?.conversation_id || 'unknown',
+          model_name: verifiedData.model || 'grok-4',
+          agent_name: 'verifier',
+          contributed: true,
+          offline: false,
+          tokens_used: verification.tokensUsed?.total || 0,
+          cost_usd: verifiedData.cost || 0,
+          latency_ms: verifiedData.latency || 0,
+        });
+        this.logger.log(`🎸 Committee: Grok-${verifiedData.model} contribution recorded`);
+      }
 
       // VETO LOGIC: Flag if confidence is too low
       if (verifiedData.confidence < 0.8) {
@@ -140,6 +164,19 @@ export class VerifierAgent {
       return verifiedData;
     } catch (error) {
       this.logger.error(`❌ Verifier failed: ${error.message}`);
+      
+      // Record failed contribution
+      if (this.committeeService && messages[0]) {
+        await this.committeeService.recordContribution({
+          session_id: messages[0].conversation_id || 'unknown',
+          model_name: 'grok-4',
+          agent_name: 'verifier',
+          contributed: false,
+          offline: true,
+          error_type: error.message,
+        });
+      }
+      
       return null;
     }
   }
@@ -237,7 +274,7 @@ ${finalResponse}
           ...parsed,
           latency: Date.now() - startTime,
           cost: verification.cost,
-          model: 'grok-4-0709',
+          model: verification.model || 'grok',
         };
       } catch (parseError) {
         verifiedData = {
@@ -247,7 +284,7 @@ ${finalResponse}
           sources: ['Grok post-synthesis check'],
           latency: Date.now() - startTime,
           cost: verification.cost,
-          model: 'grok-4-0709',
+          model: verification.model || 'grok',
         };
       }
 
@@ -258,7 +295,7 @@ ${finalResponse}
           fact,
           confidence: verifiedData.confidence,
           sources: verifiedData.sources,
-          verifiedBy: 'grok-4-0709',
+          verifiedBy: verifiedData.model || 'grok', // Use actual model name with fallback
           timestamp: new Date(),
         }));
 
@@ -271,9 +308,36 @@ ${finalResponse}
 
       this.logger.log(`✅ Post-synthesis check complete - confidence: ${verifiedData.confidence.toFixed(2)}`);
 
+      // 🎸 RECORD CONTRIBUTION: Track post-synthesis verification
+      if (this.committeeService && messages[0]) {
+        await this.committeeService.recordContribution({
+          session_id: messages[0].conversation_id || 'unknown',
+          model_name: verifiedData.model || 'grok-4',
+          agent_name: 'verifier-post',
+          contributed: true,
+          offline: false,
+          cost_usd: verifiedData.cost || 0,
+          latency_ms: verifiedData.latency || 0,
+        });
+        this.logger.log(`🎸 Committee: Post-synthesis Grok contribution recorded`);
+      }
+
       return verifiedData;
     } catch (error) {
       this.logger.error(`❌ Post-synthesis check failed: ${error.message}`);
+      
+      // Record failed post-synthesis contribution
+      if (this.committeeService && messages[0]) {
+        await this.committeeService.recordContribution({
+          session_id: messages[0].conversation_id || 'unknown',
+          model_name: 'grok-4',
+          agent_name: 'verifier-post',
+          contributed: false,
+          offline: true,
+          error_type: error.message,
+        });
+      }
+      
       return null;
     }
   }
@@ -334,7 +398,7 @@ Only include facts you can verify with high confidence (>0.7).`;
           fact: v.fact,
           confidence: v.confidence || 0.8,
           sources: v.sources || ['Grok pre-jam sweep'],
-          verifiedBy: 'grok-4-0709',
+          verifiedBy: verification.model || 'grok', // Use actual model name
           timestamp: new Date(),
         }));
       } catch (parseError) {

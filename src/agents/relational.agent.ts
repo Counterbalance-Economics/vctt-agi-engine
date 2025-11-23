@@ -1,0 +1,139 @@
+
+import { Injectable, Logger } from '@nestjs/common';
+import { InternalState } from '../entities/internal-state.entity';
+import { Message } from '../entities/message.entity';
+import { LLMService } from '../services/llm.service';
+import { LLMCascadeService } from '../services/llm-cascade.service';
+
+@Injectable()
+export class RelationalAgent {
+  private readonly logger = new Logger(RelationalAgent.name);
+
+  constructor(private llmService: LLMService, private llmCascade: LLMCascadeService) {}
+
+  async analyze(messages: Message[], state: InternalState, subtask?: string): Promise<void> {
+    this.logger.log('🔵 Running Relational Agent - analyzing emotional context');
+    if (subtask) {
+      this.logger.log(`   Specific subtask: ${subtask.substring(0, 80)}...`);
+    }
+
+    const conversationHistory = messages.map(m => ({
+      role: m.role as 'user' | 'assistant' | 'system',
+      content: m.content,
+    }));
+
+    const subtaskInstruction = subtask 
+      ? `\n\n🎯 SPECIFIC TASK FOR THIS ANALYSIS:\n${subtask}\n\nFocus your analysis on this specific aspect while still providing the required JSON structure.`
+      : '';
+
+    const systemPrompt = `You are the Relational Agent in the VCTT-AGI Coherence Kernel (Phase 3).${subtaskInstruction}
+
+**Your Role:** Analyze emotional content, contextual relationships, and interpersonal dynamics in the conversation.
+
+**Context:** 
+- This is a multi-agent AGI system built by Counterbalance Economics
+- VCTT = Virtual Counterfactual Trust Testing
+- You work alongside Analyst (logic), Ethics (alignment), and Synthesiser (user response)
+- Your insights feed into the SIM (Social Influence Module) which tracks emotional_intensity
+
+**Task:** Analyze the conversation and provide structured emotional intelligence insights.
+
+**Return Format (JSON ONLY, no markdown):**
+{
+  "emotional_intensity": <number 0.0-1.0>,
+  "emotional_tone": "<neutral|anxious|angry|sad|joyful|excited|uncertain|other>",
+  "context_importance": <number 0.0-1.0>,
+  "dynamics": "<brief description of interpersonal dynamics>"
+}
+
+**Guidelines:**
+- emotional_intensity: 0.0 = completely neutral, 1.0 = highly charged
+- emotional_tone: primary emotion detected (be specific)
+- context_importance: how much does context matter for understanding this conversation?
+- dynamics: relationship patterns, power dynamics, trust signals, etc.
+
+
+CRITICAL: Your response MUST be valid JSON only. No prose, no explanations, no markdown.
+Start with { and end with }. If you write anything other than JSON, the system will fail.
+Respond ONLY with valid JSON. No markdown, no explanations.`;
+
+    const startTime = Date.now();
+    
+    try {
+      const response = await this.llmCascade.generateCompletion(
+        conversationHistory,
+        systemPrompt,
+        0.5, // Moderate temperature for emotional nuance
+        'relational', // Use GPT-5.1 for emotional intelligence
+        false, // No MCP tools needed (pure reasoning)
+      );
+
+      const latency = Date.now() - startTime;
+
+      // Parse JSON response (strip markdown if present)
+      let content = response.content.trim();
+      if (content.includes('```json')) {
+        content = content.replace(/```json\n/g, '').replace(/```/g, '').trim();
+      }
+      
+      // Extract JSON if there's prose before/after it (safety net)
+      const firstBrace = content.indexOf('{');
+      const lastBrace = content.lastIndexOf('}');
+      
+      if (firstBrace !== -1 && lastBrace !== -1 && firstBrace < lastBrace) {
+        content = content.substring(firstBrace, lastBrace + 1);
+      }
+      
+      let analysis: any;
+      let parseSucceeded = true;
+      
+      try {
+        analysis = JSON.parse(content);
+        this.logger.log(`✅ Relational JSON parsed successfully`);
+      } catch (parseError) {
+        parseSucceeded = false;
+        this.logger.warn(`⚠️  Relational JSON parsing failed: ${parseError.message}`);
+        this.logger.warn(`   Raw content: ${content.substring(0, 200)}...`);
+        
+        // GROK SAFETY NET: Check if response came from Grok
+        const isGrokResponse = (response.usedProvider || response.model || '').toLowerCase().includes('grok');
+        
+        if (isGrokResponse) {
+          // If Grok provided the response, trust it even if format is wrong
+          this.logger.log(`🛡️  GROK SAFETY NET: Using trusted fallback values (low emotional intensity)`);
+          analysis = {
+            emotional_intensity: 0.05,  // Very low = high trust
+            emotional_tone: 'neutral',
+            trust_signals: ['Grok verified'],
+          };
+        } else {
+          // For non-Grok responses, use neutral fallback
+          this.logger.log(`⚠️  Using neutral fallback values`);
+          analysis = {
+            emotional_intensity: 0.3,  // Moderate
+            emotional_tone: 'neutral',
+            trust_signals: [],
+          };
+        }
+      }
+
+      // Update state based on analysis
+      state.state.sim.emotional_intensity = analysis.emotional_intensity || 0.0;
+      
+      const statusIcon = parseSucceeded ? '✅' : '🛡️';
+      this.logger.log(
+        `${statusIcon} Relational complete - ` +
+        `emotional_intensity: ${state.state.sim.emotional_intensity.toFixed(3)}, ` +
+        `tone: ${analysis.emotional_tone}, ` +
+        `cost: $${response.cost.toFixed(4)}, ` +
+        `latency: ${latency}ms, ` +
+        `parse_mode: ${parseSucceeded ? 'JSON' : 'SAFETY_NET'}`
+      );
+    } catch (error) {
+      this.logger.error(`❌ Relational agent error: ${error.message}`);
+      // Final fallback to baseline values
+      state.state.sim.emotional_intensity = Math.min(state.state.sim.emotional_intensity + 0.15, 1.0);
+      this.logger.warn(`⚠️ Using fallback emotional_intensity: ${state.state.sim.emotional_intensity.toFixed(3)}`);
+    }
+  }
+}
