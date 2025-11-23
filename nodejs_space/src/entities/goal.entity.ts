@@ -24,6 +24,9 @@ export class Goal {
   @Column({ type: 'int', nullable: true, name: 'parent_goal_id' })
   parent_goal_id: number;
 
+  @Column({ type: 'jsonb', nullable: true, default: '[]' })
+  dependencies: number[];
+
   @Column({ type: 'varchar', length: 100 })
   created_by: string;
 

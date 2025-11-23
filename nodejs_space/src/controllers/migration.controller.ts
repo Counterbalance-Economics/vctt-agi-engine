@@ -91,6 +91,65 @@ export class MigrationController {
     }
   }
 
+  @Post('apply/goal-dependencies')
+  @ApiOperation({ 
+    summary: 'Apply dependencies column migration to goals table',
+    description: 'Adds the dependencies JSONB column to goals table for goal dependency tracking'
+  })
+  @ApiResponse({ status: 200, description: 'Migration applied successfully' })
+  @ApiResponse({ status: 500, description: 'Migration failed' })
+  async applyGoalDependenciesMigration(): Promise<any> {
+    this.logger.log('POST /api/migrations/apply/goal-dependencies - Applying migration...');
+
+    const db = this.goalRepository.manager;
+
+    try {
+      // Check if column already exists
+      const columnExists = await db.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.columns 
+          WHERE table_schema = 'public' 
+          AND table_name = 'goals'
+          AND column_name = 'dependencies'
+        );
+      `);
+
+      if (columnExists[0].exists) {
+        return {
+          success: true,
+          message: 'dependencies column already exists in goals table',
+          alreadyExists: true,
+        };
+      }
+
+      // Add the dependencies column
+      await db.query(`
+        ALTER TABLE goals ADD COLUMN dependencies JSONB DEFAULT '[]';
+      `);
+
+      // Add column comment
+      await db.query(`
+        COMMENT ON COLUMN goals.dependencies IS 'Array of goal IDs this goal depends on';
+      `);
+
+      this.logger.log('✅ dependencies column added to goals table successfully');
+
+      return {
+        success: true,
+        message: 'dependencies column added successfully',
+        timestamp: new Date().toISOString(),
+      };
+
+    } catch (error) {
+      this.logger.error(`❌ Migration failed: ${error.message}`, error.stack);
+      return {
+        success: false,
+        message: error.message,
+        error: error.stack,
+      };
+    }
+  }
+
   @Get('status')
   @ApiOperation({ 
     summary: 'Check migration status',
@@ -119,10 +178,20 @@ export class MigrationController {
         );
       `);
 
+      const dependenciesExists = await db.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.columns 
+          WHERE table_schema = 'public' 
+          AND table_name = 'goals'
+          AND column_name = 'dependencies'
+        );
+      `);
+
       return {
         success: true,
         tables: tables.map((t: any) => t.table_name),
         artifactsTableExists: artifactsExists[0].exists,
+        dependenciesColumnExists: dependenciesExists[0].exists,
       };
 
     } catch (error) {
