@@ -5,9 +5,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Goal } from '../entities/goal.entity';
 import { Subtask } from '../entities/subtask.entity';
+import { Artifact } from '../entities/artifact.entity';
 import { RealTimeSessionService } from './realtime-session.service';
 import { LLMCoachService } from './llm-coach.service';
 import { PriorityEngineService } from './priority-engine.service';
+import { ArtifactsService } from './artifacts.service';
 import { AutonomousGateway } from '../gateways/autonomous.gateway';
 
 /**
@@ -69,6 +71,7 @@ export class AutonomousOrchestratorService {
     private realTimeSessionService: RealTimeSessionService,
     private coachService: LLMCoachService,
     private priorityEngine: PriorityEngineService,
+    private artifactsService: ArtifactsService,
     private gateway: AutonomousGateway,
   ) {
     this.logger.log('🤖 Autonomous Orchestrator initialized (Phase 4 - FULL REALITY MODE)');
@@ -470,5 +473,82 @@ export class AutonomousOrchestratorService {
       ORDER BY timestamp DESC
       LIMIT $2
     `, [goalId, limit]);
+  }
+
+  /**
+   * Complete a goal and capture its artifacts
+   * This method is called when a DeepAgent session finishes
+   */
+  async completeGoalWithArtifacts(
+    goalId: number,
+    sessionId: string,
+    artifacts: Array<{
+      type: string;
+      name: string;
+      description?: string;
+      path?: string;
+      data?: string;
+      metadata?: any;
+    }>
+  ) {
+    const db = this.goalRepository.manager;
+
+    try {
+      this.logger.log(`✅ Completing goal ${goalId} with ${artifacts.length} artifacts`);
+
+      // Mark goal as completed
+      await this.goalRepository.update(goalId, {
+        status: 'completed',
+        updated_at: new Date(),
+      });
+
+      // Store all artifacts
+      for (const artifact of artifacts) {
+        await this.artifactsService.createArtifact({
+          goalId,
+          artifactType: artifact.type,
+          artifactName: artifact.name,
+          artifactDescription: artifact.description,
+          artifactPath: artifact.path,
+          artifactData: artifact.data,
+          metadata: artifact.metadata,
+          createdBy: 'min',
+        });
+
+        this.logger.log(`📦 Artifact stored: ${artifact.name} (${artifact.type})`);
+      }
+
+      // Update execution queue
+      await db.query(`
+        UPDATE execution_queue
+        SET status = 'completed',
+            completed_at = CURRENT_TIMESTAMP
+        WHERE goal_id = $1
+        AND session_id = $2
+        AND status = 'processing'
+      `, [goalId, sessionId]);
+
+      // Log completion
+      await this.logExecution(
+        0, // queue_id placeholder
+        goalId,
+        'info',
+        `Goal completed with ${artifacts.length} artifacts`,
+        { session_id: sessionId, artifact_count: artifacts.length }
+      );
+
+      // Broadcast completion (optional - add to gateway if needed)
+      // this.gateway.broadcastGoalCompletion(goalId, artifacts.length);
+
+      return {
+        success: true,
+        goalId,
+        artifactsStored: artifacts.length,
+      };
+
+    } catch (error) {
+      this.logger.error(`❌ Failed to complete goal ${goalId}: ${error.message}`);
+      throw error;
+    }
   }
 }

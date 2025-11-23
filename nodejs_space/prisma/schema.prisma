@@ -210,6 +210,7 @@ model goals {
   audit_entries       goal_audit[]
   activity_logs       goal_activity_logs[]
   subtasks            goal_subtasks[]
+  artifacts           goal_artifacts[]
   scheduled_tasks     scheduled_tasks[] @relation("TaskGoals")
   tool_invocations    tool_invocations[] @relation("InvocationGoals")
   autonomy_audits     autonomy_audit[] @relation("AuditGoals")
@@ -318,6 +319,30 @@ model goal_subtasks {
   @@index([goal_id], name: "idx_subtasks_goal")
   @@index([status], name: "idx_subtasks_status")
   @@map("goal_subtasks")
+}
+
+// Goal Artifacts - Completed builds, outputs, deliverables
+model goal_artifacts {
+  id                  Int         @id @default(autoincrement())
+  goal_id             Int
+  artifact_type       String      @db.VarChar(50) // code, url, file, screenshot, document, deployment
+  artifact_name       String      @db.VarChar(500)
+  artifact_description String?    @db.Text
+  artifact_path       String?     @db.Text // File path or URL
+  artifact_data       String?     @db.Text // Small inline content (code snippets, JSON, etc.)
+  file_size           Int?        // Size in bytes
+  mime_type           String?     @db.VarChar(100)
+  metadata            Json?       @db.JsonB // Additional metadata (language, framework, etc.)
+  created_at          DateTime    @default(now()) @db.Timestamp(6)
+  created_by          String      @default("min") @db.VarChar(100)
+  
+  // Relations
+  goal                goals       @relation(fields: [goal_id], references: [id], onDelete: Cascade)
+  
+  @@index([goal_id], name: "idx_artifacts_goal")
+  @@index([artifact_type], name: "idx_artifacts_type")
+  @@index([created_at], name: "idx_artifacts_created")
+  @@map("goal_artifacts")
 }
 
 // Execution State - Track MIN's execution loop

@@ -77,6 +77,10 @@ import { InternalState } from './entities/internal-state.entity';
 import { LLMContribution } from './entities/llm-contribution.entity';
 import { Goal } from './entities/goal.entity';
 import { Subtask } from './entities/subtask.entity';
+import { Artifact } from './entities/artifact.entity';
+import { ArtifactsService } from './services/artifacts.service';
+import { ArtifactsController } from './controllers/artifacts.controller';
+import { MigrationController } from './controllers/migration.controller';
 import { StreamingGateway } from './gateways/streaming.gateway';
 import { ExecutionGateway } from './gateways/execution.gateway';
 import { AutonomousGateway } from './gateways/autonomous.gateway';
@@ -99,12 +103,12 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
           TypeOrmModule.forRoot({
             type: 'postgres',
             url: process.env.DATABASE_URL,
-            entities: [Conversation, Message, InternalState, LLMContribution, Goal, Subtask],
+            entities: [Conversation, Message, InternalState, LLMContribution, Goal, Subtask, Artifact],
             synchronize: false, // Use migrations instead of auto-sync
             logging: process.env.NODE_ENV === 'development',
             ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
           }),
-          TypeOrmModule.forFeature([Conversation, Message, InternalState, LLMContribution, Goal, Subtask]),
+          TypeOrmModule.forFeature([Conversation, Message, InternalState, LLMContribution, Goal, Subtask, Artifact]),
         ]
       : []),
   ],
@@ -149,6 +153,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     LLMCoachService, // LLM-powered coach analysis (Phase 4 Real AI)
     PriorityEngineService, // Auto-prioritization engine (Phase 4 Killer Feature)
     RealTimeSessionService, // Real-time DeepAgent session management (Phase 4)
+    ArtifactsService, // Artifact storage and management (Phase 5 Deliverables)
     
     // Agents
     PlannerAgent,
@@ -198,6 +203,8 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     DeepAgentSessionController, // DeepAgent Sessions API (Phase 1 Manual Bridge)
     SessionActivityController, // Session Activity Tracking API (Phase 2 Auto-Sync)
     AutonomousExecutionController, // Autonomous Execution API (Phase 3 Full Autonomy)
+    ArtifactsController, // Artifacts API (Phase 5 Deliverables)
+    MigrationController, // Database Migrations
   ],
 })
 export class AppModule {}

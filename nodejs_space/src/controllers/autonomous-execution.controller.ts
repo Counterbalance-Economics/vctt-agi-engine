@@ -4,7 +4,7 @@ import { AutonomousOrchestratorService } from '../services/autonomous-orchestrat
 import { PriorityEngineService } from '../services/priority-engine.service';
 import { LLMCoachService } from '../services/llm-coach.service';
 import { RealTimeSessionService } from '../services/realtime-session.service';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { DataSource } from 'typeorm';
 
 /**
@@ -364,6 +364,50 @@ export class AutonomousExecutionController {
         success: false,
         error: error.message,
         hint: 'Tables may already exist. Check error details.',
+      };
+    }
+  }
+
+  /**
+   * Complete a goal and capture its artifacts
+   * POST /api/autonomous/complete/:goalId
+   */
+  @Post('complete/:goalId')
+  @ApiOperation({ 
+    summary: 'Complete a goal and store its artifacts',
+    description: 'Mark a goal as completed and capture all build outputs/deliverables'
+  })
+  @ApiParam({ name: 'goalId', description: 'Goal ID', type: Number })
+  @ApiResponse({ status: 200, description: 'Goal completed with artifacts' })
+  async completeGoal(
+    @Param('goalId') goalId: string,
+    @Body() body: {
+      sessionId: string;
+      artifacts: Array<{
+        type: string;
+        name: string;
+        description?: string;
+        path?: string;
+        data?: string;
+        metadata?: any;
+      }>;
+    }
+  ) {
+    try {
+      this.logger.log(`POST /api/autonomous/complete/${goalId} - Completing goal with ${body.artifacts?.length || 0} artifacts`);
+
+      const result = await this.orchestratorService.completeGoalWithArtifacts(
+        parseInt(goalId),
+        body.sessionId,
+        body.artifacts || []
+      );
+
+      return result;
+    } catch (error) {
+      this.logger.error(`Failed to complete goal ${goalId}: ${error.message}`);
+      return {
+        success: false,
+        error: error.message,
       };
     }
   }
