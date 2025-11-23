@@ -1,12 +1,12 @@
 
-import { Injectable, Logger } from '@nestjs/common';
-import axios from 'axios';
+import { Injectable, Logger, forwardRef, Inject } from '@nestjs/common';
+import { InternalGoalExecutorService } from './internal-goal-executor.service';
 
 /**
- * Real-Time Session Service - Phase 4
+ * Real-Time Session Service - Phase 4.1 (FIXED)
  * 
- * Interfaces with the DeepAgent API to spawn and manage autonomous sessions.
- * This is the bridge between MIN and actual execution.
+ * Manages autonomous execution sessions using MIN's internal LLM cascade.
+ * No external dependencies - pure internal execution with Grok/Claude/GPT cascade!
  */
 
 export interface RealTimeSession {
@@ -22,89 +22,113 @@ export interface RealTimeSession {
 @Injectable()
 export class RealTimeSessionService {
   private readonly logger = new Logger(RealTimeSessionService.name);
-  private readonly DEEPAGENT_API_BASE = process.env.DEEPAGENT_API_BASE || 'https://apps.abacus.ai/api/v0';
   
   // Track active sessions
   private activeSessions = new Map<string, RealTimeSession>();
+  
+  // Track running executions (prevents duplicate execution)
+  private runningExecutions = new Set<string>();
 
-  constructor() {
-    this.logger.log('🚀 Real-Time Session Service initialized');
+  constructor(
+    @Inject(forwardRef(() => InternalGoalExecutorService))
+    private executor: InternalGoalExecutorService,
+  ) {
+    this.logger.log('🚀 Real-Time Session Service initialized - INTERNAL EXECUTION MODE');
   }
 
   /**
-   * Spawn a new DeepAgent session for a goal
+   * Spawn a new INTERNAL execution session for a goal
    */
   async spawnSession(goalId: number, goalTitle: string, goalDescription: string): Promise<RealTimeSession> {
+    const sessionId = `session-${goalId}-${Date.now()}`;
+    
+    this.logger.log(`🌱 Spawning INTERNAL execution session for goal ${goalId}: ${goalTitle}`);
+
+    // Check if already running
+    if (this.runningExecutions.has(`goal-${goalId}`)) {
+      this.logger.warn(`⚠️  Goal ${goalId} is already executing, returning existing session`);
+      const existingSession = Array.from(this.activeSessions.values()).find(
+        s => s.goal_context.goal_id === goalId && s.status === 'running'
+      );
+      if (existingSession) {
+        return existingSession;
+      }
+    }
+
+    const session: RealTimeSession = {
+      session_id: sessionId,
+      status: 'initializing',
+      created_at: new Date(),
+      goal_context: {
+        goal_id: goalId,
+        title: goalTitle,
+        description: goalDescription,
+        mode: 'reality', // Always reality mode with internal LLM cascade
+      },
+    };
+
+    this.activeSessions.set(sessionId, session);
+    this.runningExecutions.add(`goal-${goalId}`);
+
+    // Execute goal asynchronously (don't block)
+    this.executeGoalAsync(sessionId, goalId, goalTitle, goalDescription);
+
+    this.logger.log(`✅ Internal execution session spawned: ${sessionId}`);
+
+    return session;
+  }
+
+  /**
+   * Execute goal in background using internal LLM cascade
+   */
+  private async executeGoalAsync(
+    sessionId: string,
+    goalId: number,
+    goalTitle: string,
+    goalDescription: string
+  ) {
     try {
-      this.logger.log(`🌱 Spawning DeepAgent session for goal ${goalId}: ${goalTitle}`);
+      // Update status to running
+      const session = this.activeSessions.get(sessionId);
+      if (session) {
+        session.status = 'running';
+        this.activeSessions.set(sessionId, session);
+      }
 
-      // Create the task prompt
-      const taskPrompt = this.buildTaskPrompt(goalTitle, goalDescription);
+      this.logger.log(`⚡ Executing goal ${goalId} with internal LLM cascade...`);
 
-      // Spawn session via internal API
-      // Note: Using Abacus.AI's internal conversation/task API
-      const response = await axios.post(
-        `${this.DEEPAGENT_API_BASE}/createConversation`,
-        {
-          name: `MIN-AUTO: ${goalTitle}`,
-          description: taskPrompt,
-          appId: 'appllm_engineer', // DeepAgent app ID
-          autoStart: true,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            // Auth will be handled by the platform automatically
-          },
-          timeout: 10000,
+      // Execute using internal executor
+      const result = await this.executor.executeGoal(goalId, goalTitle, goalDescription, sessionId);
+
+      // Update session with result
+      if (this.activeSessions.has(sessionId)) {
+        const updatedSession = this.activeSessions.get(sessionId)!;
+        updatedSession.status = result.success ? 'completed' : 'failed';
+        updatedSession.result = result;
+        updatedSession.progress = 100;
+        if (!result.success && result.error) {
+          updatedSession.error = result.error;
         }
+        this.activeSessions.set(sessionId, updatedSession);
+      }
+
+      this.logger.log(
+        `${result.success ? '✅' : '❌'} Goal ${goalId} execution ${result.success ? 'completed' : 'failed'} - Cost: $${result.cost_usd.toFixed(4)}, Models: ${result.models_used.join(', ')}`
       );
 
-      const sessionId = response.data.conversationId || `session-${Date.now()}`;
-
-      const session: RealTimeSession = {
-        session_id: sessionId,
-        status: 'initializing',
-        created_at: new Date(),
-        goal_context: {
-          goal_id: goalId,
-          title: goalTitle,
-          description: goalDescription,
-        },
-      };
-
-      this.activeSessions.set(sessionId, session);
-
-      this.logger.log(`✅ DeepAgent session spawned: ${sessionId}`);
-
-      return session;
-
     } catch (error) {
-      this.logger.error(`❌ Failed to spawn DeepAgent session: ${error.message}`);
-      
-      // Determine mode based on available API keys
-      const hasOpenAI = !!process.env.OPENAI_API_KEY;
-      const hasAbacusAI = !!process.env.ABACUSAI_API_KEY;
-      const mode = (hasOpenAI || hasAbacusAI) ? 'reality' : 'simulation';
-      
-      this.logger.log(`🎯 Creating fallback session in ${mode.toUpperCase()} mode (OpenAI: ${hasOpenAI}, AbacusAI: ${hasAbacusAI})`);
-      
-      // Fallback: Create a local session (reality or simulation based on API keys)
-      const fallbackSession: RealTimeSession = {
-        session_id: `fallback-${goalId}-${Date.now()}`,
-        status: 'running',
-        created_at: new Date(),
-        goal_context: {
-          goal_id: goalId,
-          title: goalTitle,
-          description: goalDescription,
-          mode: mode,
-        },
-      };
+      this.logger.error(`❌ Internal execution failed for goal ${goalId}: ${error.message}`, error.stack);
 
-      this.activeSessions.set(fallbackSession.session_id, fallbackSession);
-      
-      return fallbackSession;
+      // Update session with error
+      if (this.activeSessions.has(sessionId)) {
+        const updatedSession = this.activeSessions.get(sessionId)!;
+        updatedSession.status = 'failed';
+        updatedSession.error = error.message;
+        this.activeSessions.set(sessionId, updatedSession);
+      }
+    } finally {
+      // Remove from running set
+      this.runningExecutions.delete(`goal-${goalId}`);
     }
   }
 
@@ -112,115 +136,20 @@ export class RealTimeSessionService {
    * Check session status
    */
   async getSessionStatus(sessionId: string): Promise<RealTimeSession | null> {
-    // First check local cache
-    if (this.activeSessions.has(sessionId)) {
-      return this.activeSessions.get(sessionId)!;
-    }
-
-    try {
-      // Query API for session status
-      const response = await axios.get(
-        `${this.DEEPAGENT_API_BASE}/getConversation`,
-        {
-          params: { conversationId: sessionId },
-          timeout: 5000,
-        }
-      );
-
-      if (response.data) {
-        const session: RealTimeSession = {
-          session_id: sessionId,
-          status: this.mapApiStatusToSessionStatus(response.data.status),
-          created_at: new Date(response.data.createdAt),
-          goal_context: response.data.context,
-          progress: response.data.progress,
-        };
-
-        this.activeSessions.set(sessionId, session);
-        return session;
-      }
-
-    } catch (error) {
-      this.logger.warn(`Failed to query session ${sessionId}: ${error.message}`);
-    }
-
-    return null;
+    return this.activeSessions.get(sessionId) || null;
   }
 
   /**
-   * Send a message to a running session
-   */
-  async sendMessage(sessionId: string, message: string): Promise<boolean> {
-    try {
-      await axios.post(
-        `${this.DEEPAGENT_API_BASE}/sendMessage`,
-        {
-          conversationId: sessionId,
-          message: message,
-        },
-        {
-          timeout: 5000,
-        }
-      );
-
-      return true;
-    } catch (error) {
-      this.logger.error(`Failed to send message to session ${sessionId}: ${error.message}`);
-      return false;
-    }
-  }
-
-  /**
-   * Complete a session (for simulation mode)
+   * Complete a session
    */
   async completeSession(sessionId: string, result: any): Promise<void> {
     const session = this.activeSessions.get(sessionId);
     if (session) {
       session.status = 'completed';
       session.result = result;
+      session.progress = 100;
       this.activeSessions.set(sessionId, session);
     }
-  }
-
-  /**
-   * Build task prompt for DeepAgent
-   */
-  private buildTaskPrompt(title: string, description: string): string {
-    return `
-# AUTONOMOUS TASK FROM MIN (VCTT-AGI Engine)
-
-**Goal:** ${title}
-
-**Description:**
-${description}
-
-**Instructions:**
-- This is an autonomous execution spawned by MIN's orchestrator
-- Complete the goal as specified
-- Report progress and results
-- Handle errors gracefully
-- Optimize for efficiency
-
-**Expected Outcome:**
-Complete the goal successfully and report final status.
-    `.trim();
-  }
-
-  /**
-   * Map API status to session status
-   */
-  private mapApiStatusToSessionStatus(apiStatus: string): RealTimeSession['status'] {
-    const statusMap: Record<string, RealTimeSession['status']> = {
-      'pending': 'initializing',
-      'running': 'running',
-      'active': 'running',
-      'completed': 'completed',
-      'success': 'completed',
-      'failed': 'failed',
-      'error': 'failed',
-    };
-
-    return statusMap[apiStatus?.toLowerCase()] || 'running';
   }
 
   /**

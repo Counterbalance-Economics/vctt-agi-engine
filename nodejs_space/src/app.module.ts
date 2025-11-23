@@ -36,6 +36,7 @@ import { CoachExecutionService } from './services/coach-execution.service';
 import { LLMCoachService } from './services/llm-coach.service';
 import { PriorityEngineService } from './services/priority-engine.service';
 import { RealTimeSessionService } from './services/realtime-session.service';
+import { InternalGoalExecutorService } from './services/internal-goal-executor.service';
 import { SessionController } from './controllers/session.controller';
 import { SessionActivityController } from './controllers/session-activity.controller';
 import { AutonomousExecutionController } from './controllers/autonomous-execution.controller';
@@ -154,6 +155,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     LLMCoachService, // LLM-powered coach analysis (Phase 4 Real AI)
     PriorityEngineService, // Auto-prioritization engine (Phase 4 Killer Feature)
     RealTimeSessionService, // Real-time DeepAgent session management (Phase 4)
+    InternalGoalExecutorService, // Internal LLM cascade executor (Phase 4.1 - FIX)
     ArtifactsService, // Artifact storage and management (Phase 5 Deliverables)
     
     // Agents
