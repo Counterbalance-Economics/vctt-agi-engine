@@ -1,0 +1,95 @@
+
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { VCTTEngineService } from './services/vctt-engine.service';
+import { AnalyticsService } from './services/analytics.service';
+import { LLMService } from './services/llm.service';
+import { LLMCascadeService } from './services/llm-cascade.service';
+import { LLMCommitteeService } from './services/llm-committee.service';
+import { TruthMyceliumService } from './services/truth-mycelium.service';
+import { SessionController } from './controllers/session.controller';
+import { HealthController } from './controllers/health.controller';
+import { AnalyticsController } from './controllers/analytics.controller';
+import { LLMCommitteeController } from './controllers/llm-committee.controller';
+import { TruthMyceliumController } from './controllers/truth-mycelium.controller';
+import { PlannerAgent } from './agents/planner.agent';
+import { AnalystAgent } from './agents/analyst.agent';
+import { RelationalAgent } from './agents/relational.agent';
+import { EthicsAgent } from './agents/ethics.agent';
+import { SynthesiserAgent } from './agents/synthesiser.agent';
+import { VerifierAgent } from './agents/verifier.agent';
+import { SIMModule } from './modules/sim.module';
+import { CAMModule } from './modules/cam.module';
+import { SREModule } from './modules/sre.module';
+import { CTMModule } from './modules/ctm.module';
+import { RILModule } from './modules/ril.module';
+import { RateLimitGuard } from './guards/rate-limit.guard';
+import { CostLimitGuard } from './guards/cost-limit.guard';
+import { Conversation } from './entities/conversation.entity';
+import { Message } from './entities/message.entity';
+import { InternalState } from './entities/internal-state.entity';
+import { LLMContribution } from './entities/llm-contribution.entity';
+
+@Module({
+  imports: [
+    // Configuration module
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+    }),
+    
+    // TypeORM PostgreSQL Configuration - Only if DATABASE_URL is set
+    ...(process.env.DATABASE_URL
+      ? [
+          TypeOrmModule.forRoot({
+            type: 'postgres',
+            url: process.env.DATABASE_URL,
+            entities: [Conversation, Message, InternalState, LLMContribution],
+            synchronize: true, // Auto-create tables (disable in production)
+            logging: process.env.NODE_ENV === 'development',
+            ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+          }),
+          TypeOrmModule.forFeature([Conversation, Message, InternalState, LLMContribution]),
+        ]
+      : []),
+  ],
+  
+  providers: [
+    // Core services
+    VCTTEngineService,
+    AnalyticsService,
+    LLMService,
+    LLMCascadeService,
+    LLMCommitteeService,
+    TruthMyceliumService,
+    
+    // Agents
+    PlannerAgent,
+    AnalystAgent,
+    RelationalAgent,
+    EthicsAgent,
+    SynthesiserAgent,
+    VerifierAgent,
+    
+    // Modules
+    SIMModule,
+    CAMModule,
+    SREModule,
+    CTMModule,
+    RILModule,
+    
+    // Guards (for @UseGuards decorator)
+    RateLimitGuard,
+    CostLimitGuard,
+  ],
+  
+  controllers: [
+    SessionController,
+    HealthController,
+    AnalyticsController,
+    LLMCommitteeController,
+    TruthMyceliumController,
+  ],
+})
+export class AppModule {}

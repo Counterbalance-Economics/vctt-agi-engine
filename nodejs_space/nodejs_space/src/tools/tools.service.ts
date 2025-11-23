@@ -1,0 +1,402 @@
+
+import { Injectable, Logger, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../services/prisma.service';
+import { ToolName, InvokeToolDto } from './dto/tool-invocation.dto';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
+
+export interface ToolDefinition {
+  name: ToolName;
+  description: string;
+  requiredMode: string[];
+  requiredPermissions: string[];
+  inputSchema: Record<string, any>;
+}
+
+@Injectable()
+export class ToolsService {
+  private readonly logger = new Logger(ToolsService.name);
+  private readonly workspaceRoot = '/home/ubuntu/vctt_agi_workspace';
+
+  constructor(private prisma: PrismaService) {}
+
+  /**
+   * Get all registered tools from the database
+   */
+  async getRegisteredTools(): Promise<ToolDefinition[]> {
+    const tools = await this.prisma.tool_registry.findMany({
+      where: { status: 'active' },
+    });
+    return tools.map((t: any) => ({
+      name: t.tool_name as ToolName,
+      description: t.description,
+      requiredMode: [t.min_regulation_mode],
+      requiredPermissions: [], // Not in schema, derive from regulation_mode
+      inputSchema: (t.input_schema as any) || {},
+    }));
+  }
+
+  /**
+   * Invoke a tool with full audit logging and mode gating
+   */
+  async invokeTool(
+    dto: InvokeToolDto,
+    userId: string = 'system',
+    mode: string = 'SAFE_MODE',
+  ): Promise<any> {
+    const startTime = Date.now();
+    const invocationId = `inv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    this.logger.log(
+      `[TOOL INVOCATION] ${invocationId} | Tool: ${dto.tool} | User: ${userId} | Mode: ${mode}`,
+    );
+
+    try {
+      // 1. Verify tool is registered
+      const toolDef = await this.prisma.tool_registry.findUnique({
+        where: { tool_name: dto.tool },
+      });
+
+      if (!toolDef) {
+        throw new BadRequestException(`Tool ${dto.tool} is not registered`);
+      }
+
+      // 2. Mode gating check
+      const requiredModes = ['SAFE_MODE', 'EXPLORER_MODE', 'RESEARCH_MODE'];
+      const modeIndex = requiredModes.indexOf(mode);
+      const requiredIndex = requiredModes.indexOf(toolDef.min_regulation_mode);
+      
+      if (modeIndex < requiredIndex) {
+        throw new ForbiddenException(
+          `Tool ${dto.tool} requires at least ${toolDef.min_regulation_mode}, current mode: ${mode}`,
+        );
+      }
+
+      // 3. Execute the tool
+      let output: any;
+      let status = 'SUCCESS';
+      let errorMessage: string | undefined;
+
+      try {
+        switch (dto.tool) {
+          case ToolName.READ_FILE:
+            output = await this.readFile(dto.input as { filePath: string });
+            break;
+          case ToolName.WRITE_FILE:
+            output = await this.writeFile(dto.input as { filePath: string; content: string });
+            break;
+          case ToolName.RUN_COMMAND:
+            output = await this.runCommand(dto.input as { command: string; args?: string[] }, mode);
+            break;
+          case ToolName.SEARCH_WEB:
+            output = await this.searchWeb(dto.input as { query: string; maxResults?: number });
+            break;
+          case ToolName.CALL_LLM:
+            output = await this.callLLM(dto.input as { model: string; prompt: string; systemPrompt?: string; temperature?: number });
+            break;
+          case ToolName.QUERY_DB:
+            output = await this.queryDB(dto.input as { query: string; params?: any[] });
+            break;
+          case ToolName.SCHEDULE_TASK:
+            output = await this.scheduleTask(dto.input, userId);
+            break;
+          default:
+            throw new BadRequestException(`Unknown tool: ${dto.tool}`);
+        }
+      } catch (error) {
+        status = 'FAILED';
+        errorMessage = error.message;
+        output = { error: error.message };
+        this.logger.error(`Tool ${dto.tool} execution failed: ${error.message}`, error.stack);
+      }
+
+      const executionTimeMs = Date.now() - startTime;
+
+      // 4. Audit log to database
+      const invocation = await this.prisma.tool_invocations.create({
+        data: {
+          tool_name: dto.tool,
+          tool_version: '1.0.0',
+          session_id: dto.context || null,
+          invoked_by: userId,
+          why: dto.justification || 'Tool invocation',
+          params: dto.input as any,
+          started_at: new Date(startTime),
+          completed_at: new Date(),
+          duration_ms: executionTimeMs,
+          status,
+          result: output as any,
+          error: errorMessage || null,
+          regulation_mode: mode,
+          permission_level: 'USER',
+          blocked: false,
+          metadata: {
+            invocationId,
+            context: dto.context,
+          } as any,
+        },
+      });
+
+      // 5. Also log to autonomy audit
+      await this.prisma.autonomy_audit.create({
+        data: {
+          event_type: 'TOOL_INVOCATION',
+          actor: userId,
+          regulation_mode: mode,
+          tool_invocation_id: invocation.id,
+          details: {
+            tool_name: dto.tool,
+            invocationId,
+            input: dto.input,
+          } as any,
+          risk_level: 'LOW',
+          outcome: status,
+          metadata: {
+            executionTimeMs,
+          } as any,
+        },
+      });
+
+      this.logger.log(
+        `[TOOL COMPLETE] ${invocationId} | Status: ${status} | Time: ${executionTimeMs}ms`,
+      );
+
+      return {
+        invocationId,
+        tool: dto.tool,
+        status,
+        output,
+        executionTimeMs,
+        timestamp: new Date(),
+        error: errorMessage,
+      };
+    } catch (error) {
+      const executionTimeMs = Date.now() - startTime;
+      this.logger.error(`[TOOL ERROR] ${invocationId} | ${error.message}`, error.stack);
+
+      // Log failed invocation
+      try {
+        await this.prisma.tool_invocations.create({
+          data: {
+            tool_name: dto.tool,
+            tool_version: '1.0.0',
+            session_id: dto.context || null,
+            invoked_by: userId,
+            why: dto.justification || 'Tool invocation',
+            params: dto.input as any,
+            started_at: new Date(startTime),
+            completed_at: new Date(),
+            duration_ms: executionTimeMs,
+            status: 'FAILED',
+            result: { error: error.message } as any,
+            error: error.message,
+            regulation_mode: mode,
+            permission_level: 'USER',
+            blocked: error instanceof ForbiddenException,
+            block_reason: error instanceof ForbiddenException ? error.message : null,
+            metadata: { invocationId } as any,
+          },
+        });
+      } catch (dbError) {
+        this.logger.error('Failed to log tool invocation error to database', dbError);
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Get tool invocation history
+   */
+  async getToolHistory(filters?: {
+    userId?: string;
+    toolName?: string;
+    status?: string;
+    limit?: number;
+  }) {
+    const { userId, toolName, status, limit = 100 } = filters || {};
+
+    return this.prisma.tool_invocations.findMany({
+      where: {
+        ...(userId && { invoked_by: userId }),
+        ...(toolName && { tool_name: toolName }),
+        ...(status && { status }),
+      },
+      orderBy: { invoked_at: 'desc' },
+      take: limit,
+    });
+  }
+
+  // ==================== TOOL IMPLEMENTATIONS ====================
+
+  private async readFile(input: { filePath: string }): Promise<any> {
+    const { filePath } = input;
+    const safePath = path.join(this.workspaceRoot, filePath);
+
+    // Security: prevent path traversal
+    if (!safePath.startsWith(this.workspaceRoot)) {
+      throw new ForbiddenException('Path traversal detected');
+    }
+
+    try {
+      const content = await fs.readFile(safePath, 'utf-8');
+      const stats = await fs.stat(safePath);
+      return {
+        filePath,
+        content,
+        size: stats.size,
+        modified: stats.mtime,
+      };
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        throw new BadRequestException(`File not found: ${filePath}`);
+      }
+      throw error;
+    }
+  }
+
+  private async writeFile(input: { filePath: string; content: string }): Promise<any> {
+    const { filePath, content } = input;
+    const safePath = path.join(this.workspaceRoot, filePath);
+
+    // Security: prevent path traversal
+    if (!safePath.startsWith(this.workspaceRoot)) {
+      throw new ForbiddenException('Path traversal detected');
+    }
+
+    // Ensure directory exists
+    await fs.mkdir(path.dirname(safePath), { recursive: true });
+    await fs.writeFile(safePath, content, 'utf-8');
+
+    const stats = await fs.stat(safePath);
+    return {
+      filePath,
+      written: true,
+      size: stats.size,
+    };
+  }
+
+  private async runCommand(input: { command: string; args?: string[] }, mode: string): Promise<any> {
+    // In SAFE_MODE, only allow whitelisted commands
+    const safeCommands = ['ls', 'pwd', 'echo', 'cat', 'grep', 'find', 'wc'];
+    const { command, args = [] } = input;
+
+    if (mode === 'SAFE_MODE') {
+      const baseCommand = command.split(' ')[0];
+      if (!safeCommands.includes(baseCommand)) {
+        throw new ForbiddenException(
+          `Command "${baseCommand}" not allowed in SAFE_MODE. Allowed: ${safeCommands.join(', ')}`,
+        );
+      }
+    }
+
+    const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command;
+
+    try {
+      const { stdout, stderr } = await execAsync(fullCommand, {
+        cwd: this.workspaceRoot,
+        timeout: 30000, // 30 second timeout
+      });
+
+      return {
+        command: fullCommand,
+        stdout,
+        stderr,
+        exitCode: 0,
+      };
+    } catch (error) {
+      return {
+        command: fullCommand,
+        stdout: error.stdout || '',
+        stderr: error.stderr || error.message,
+        exitCode: error.code || 1,
+      };
+    }
+  }
+
+  private async searchWeb(input: { query: string; maxResults?: number }): Promise<any> {
+    const { query, maxResults = 5 } = input;
+
+    // Placeholder - integrate with actual search API
+    this.logger.log(`[SEARCH_WEB] Query: "${query}", maxResults: ${maxResults}`);
+
+    // For now, return mock results
+    return {
+      query,
+      results: [
+        {
+          title: 'Mock Search Result 1',
+          url: 'https://example.com/1',
+          snippet: 'This is a mock search result for demonstration purposes.',
+        },
+      ],
+      timestamp: new Date(),
+      note: 'MOCK DATA - Integrate with real search API in production',
+    };
+  }
+
+  private async callLLM(input: {
+    model: string;
+    prompt: string;
+    systemPrompt?: string;
+    temperature?: number;
+  }): Promise<any> {
+    const { model, prompt, systemPrompt, temperature = 0.7 } = input;
+
+    this.logger.log(`[CALL_LLM] Model: ${model}, Prompt length: ${prompt.length}`);
+
+    // Placeholder - integrate with actual LLM API (Grok via x.ai)
+    return {
+      model,
+      response: 'MOCK LLM RESPONSE - Integrate with real Grok/xAI API',
+      tokensUsed: 150,
+      timestamp: new Date(),
+    };
+  }
+
+  private async queryDB(input: { query: string; params?: any[] }): Promise<any> {
+    const { query, params = [] } = input;
+
+    // Execute raw SQL query via Prisma
+    try {
+      const result = await this.prisma.$queryRawUnsafe(query, ...params);
+      return {
+        query,
+        rows: result,
+        rowCount: Array.isArray(result) ? result.length : 1,
+      };
+    } catch (error) {
+      throw new BadRequestException(`Database query failed: ${error.message}`);
+    }
+  }
+
+  private async scheduleTask(input: any, userId: string): Promise<any> {
+    // Delegate to scheduler service
+    const task = await this.prisma.scheduled_tasks.create({
+      data: {
+        task_type: input.taskType || 'DEFERRED',
+        goal_id: input.goalId || null,
+        title: input.title || `Task scheduled by ${userId}`,
+        description: input.description || input.action || 'Scheduled task',
+        tool_name: input.toolName || 'RUN_COMMAND',
+        tool_params: input.payload || {},
+        scheduled_at: input.scheduledFor ? new Date(input.scheduledFor) : new Date(),
+        status: 'pending',
+        created_by: userId,
+        requires_approval: true,
+        metadata: input.metadata || {},
+      },
+    });
+
+    return {
+      taskId: task.id,
+      status: task.status,
+      scheduledFor: task.scheduled_at,
+      message: 'Task created and pending approval',
+    };
+  }
+}

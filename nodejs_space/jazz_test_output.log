@@ -1,0 +1,21 @@
+═══════════════════════════════════════════════════════════
+  FOCUSED JAZZ COUNTERFACTUAL TEST
+  5 Diverse Scenarios | Grok 4.1 Fast Reasoning
+  Target: https://34db5da34.preview.abacusai.app
+═══════════════════════════════════════════════════════════
+
+
+[Session 1] Simple type annotation
+  Complexity: simple
+  Instruction: Add TypeScript type annotations
+  Processing...
+  ✅ SUCCESS
+  τ = 0.940 | V=1.00 | C=0.80 | T=1.00
+  Suggestions: 5
+  User acceptance: ✅ YES
+  Processing time: 66.6s
+
+[Session 2] Error handling enhancement
+  Complexity: medium
+  Instruction: Add comprehensive error handling with logging
+  Processing...

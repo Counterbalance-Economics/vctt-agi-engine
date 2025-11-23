@@ -1,0 +1,56 @@
+
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: vctt_postgres
+    environment:
+      POSTGRES_DB: vctt_agi
+      POSTGRES_USER: vctt
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vctt -d vctt_agi"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vctt_network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vctt_api
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: vctt
+      DATABASE_PASSWORD: secret
+      DATABASE_NAME: vctt_agi
+      PORT: 8000
+      NODE_ENV: production
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      MAX_REPAIR_ITERATIONS: 3
+      OPENAI_MODEL: gpt-4
+      OPENAI_TEMPERATURE: 0.7
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - vctt_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  vctt_network:
+    driver: bridge

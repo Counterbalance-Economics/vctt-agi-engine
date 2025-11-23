@@ -34,51 +34,33 @@ export class PlannerAgent {
   /**
    * Decompose a query into parallel agent tasks
    * 
+   * PHASE 3.5+ OPTIMIZATION:
+   * - Simple queries use 3 agents (skip Ethics for factual questions)
+   * - Complex queries use all 4 agents
+   * - Target: <30s total (down from 75s)
+   * 
    * @param query - User's input query
    * @param messages - Conversation history for context
    * @returns Task plan with agent assignments
    */
   async plan(query: string, messages: Message[]): Promise<TaskPlan> {
     const startTime = Date.now();
-    this.logger.log('🎼 Planner Agent: Decomposing query into band parts...');
+    
+    // Detect simple queries (use 3-agent mode for speed)
+    const isSimple = this.isSimpleQuery(query);
+    const agentCount = isSimple ? 3 : 4;
+    
+    this.logger.log(`🎼 Planner Agent: ${isSimple ? 'SIMPLE' : 'COMPLEX'} query → ${agentCount} agents`);
 
-    const systemPrompt = `You are the Planner Agent, the "band leader" for a multi-agent AI system.
+    const systemPrompt = isSimple
+      ? this.getSimplePlannerPrompt()
+      : this.getComplexPlannerPrompt();
 
-Your job: Break down user queries into parallel subtasks for 4 specialized agents:
-1. **Analyst** (Claude 3.5): Data analysis, logic, patterns, narratives, factual breakdowns
-2. **Relational** (GPT-5): Emotional intelligence, empathy, social dynamics, tone
-3. **Ethics** (GPT-5): Moral reasoning, values, fairness, philosophical depth
-4. **Verification** (Grok-4.1): Real-time fact-checking, web search, current events
-
-CRITICAL RULES:
-- ALL 4 agents MUST participate (weights must sum to 1.0)
-- Default balanced weights: [0.30, 0.25, 0.25, 0.20]
-- Adjust weights based on query type:
-  - Factual/current events: Boost Verification to 0.30 (truth anchor) + Analyst (0.35)
-  - Emotional/personal: Boost Relational (0.40) + Ethics (0.25), Verification (0.15)
-  - Philosophical: Boost Ethics (0.40) + Analyst (0.30), Verification (0.15)
-  - Complex analysis: Balance all equally (0.25 each)
-- **VERIFICATION PRIORITY**: Grok has veto power — if confidence < 0.8, re-jam may be triggered
-- Be specific with subtasks - each agent needs clear instructions
-- Use "parallel" strategy unless query requires sequential reasoning
-
-Output ONLY valid JSON:
-{
-  "tasks": [
-    {"agent": "analyst", "subtask": "...", "weight": 0.25, "priority": 1},
-    {"agent": "relational", "subtask": "...", "weight": 0.25, "priority": 1},
-    {"agent": "ethics", "subtask": "...", "weight": 0.25, "priority": 1},
-    {"agent": "verification", "subtask": "...", "weight": 0.25, "priority": 1}
-  ],
-  "strategy": "parallel",
-  "reasoning": "Brief explanation of task distribution"
-}`;
-
-    const userPrompt = `Decompose this query into 4 parallel agent tasks:
+    const userPrompt = `Decompose this query into ${agentCount} parallel agent tasks:
 
 Query: "${query}"
 
-Remember: All 4 agents must contribute. Output JSON only.`;
+Remember: All ${agentCount} agents must contribute. Output JSON only.`;
 
     try {
       const response = await this.llmService.generateCompletion(
@@ -171,6 +153,110 @@ Remember: All 4 agents must contribute. Output JSON only.`;
   }
 
   /**
+   * Detect simple queries (factual, no ethical dimension)
+   * Simple queries use 3 agents (skip Ethics) for 25% faster response
+   */
+  private isSimpleQuery(query: string): boolean {
+    const lowerInput = query.toLowerCase();
+    
+    // Factual queries (no ethics needed)
+    const simplePatterns = [
+      /^who (is|was|are|were)/,
+      /^what (is|was|are|were)/,
+      /^when (is|was|did|does)/,
+      /^where (is|was|are)/,
+      /^how many/,
+      /^list/,
+      /^name/,
+      /current|latest|today|now|price|score|weather|population/,
+    ];
+    
+    // Complex queries (need ethics)
+    const complexKeywords = [
+      'should', 'ethics', 'moral', 'right', 'wrong', 'fair', 'unfair',
+      'justice', 'values', 'bias', 'equality', 'freedom', 'responsibility',
+      'philosophical', 'debate', 'controversy', 'dilemma',
+    ];
+    
+    // Check if complex
+    const hasComplexity = complexKeywords.some(kw => lowerInput.includes(kw));
+    if (hasComplexity) {
+      return false; // Use 4 agents
+    }
+    
+    // Check if simple
+    const isSimple = simplePatterns.some(pattern => pattern.test(lowerInput));
+    return isSimple;
+  }
+
+  /**
+   * Get system prompt for simple queries (3 agents)
+   */
+  private getSimplePlannerPrompt(): string {
+    return `You are the Planner Agent for SIMPLE factual queries (3 agents).
+
+Your job: Break down user queries into 3 parallel subtasks:
+1. **Analyst** (GPT-4o): Data analysis, logic, factual breakdowns
+2. **Relational** (GPT-4o): Emotional context, user intent, empathy
+3. **Verification** (Grok-4.1): Real-time fact-checking, web search
+
+CRITICAL RULES:
+- ALL 3 agents MUST participate (weights must sum to 1.0)
+- Default weights: [0.40, 0.30, 0.30] (Analyst leads)
+- Adjust based on query:
+  - Pure facts: [0.45, 0.20, 0.35] (boost Verification)
+  - Explanations: [0.50, 0.30, 0.20] (boost Analyst)
+  - Personal questions: [0.35, 0.45, 0.20] (boost Relational)
+- Be specific with subtasks
+
+Output ONLY valid JSON:
+{
+  "tasks": [
+    {"agent": "analyst", "subtask": "...", "weight": 0.40, "priority": 1},
+    {"agent": "relational", "subtask": "...", "weight": 0.30, "priority": 1},
+    {"agent": "verification", "subtask": "...", "weight": 0.30, "priority": 1}
+  ],
+  "strategy": "parallel",
+  "reasoning": "Brief explanation"
+}`;
+  }
+
+  /**
+   * Get system prompt for complex queries (4 agents)
+   */
+  private getComplexPlannerPrompt(): string {
+    return `You are the Planner Agent for COMPLEX queries (4 agents).
+
+Your job: Break down user queries into 4 parallel subtasks:
+1. **Analyst** (GPT-4o): Data analysis, logic, patterns, narratives
+2. **Relational** (GPT-4o): Emotional intelligence, empathy, social dynamics
+3. **Ethics** (GPT-4o): Moral reasoning, values, fairness, philosophy
+4. **Verification** (Grok-4.1): Real-time fact-checking, web search
+
+CRITICAL RULES:
+- ALL 4 agents MUST participate (weights must sum to 1.0)
+- Default balanced weights: [0.30, 0.25, 0.25, 0.20]
+- Adjust based on query type:
+  - Ethical/moral: [0.25, 0.25, 0.35, 0.15] (boost Ethics)
+  - Emotional/personal: [0.25, 0.40, 0.20, 0.15] (boost Relational)
+  - Factual/current: [0.35, 0.20, 0.15, 0.30] (boost Verification)
+- **VERIFICATION PRIORITY**: Grok has veto power (confidence < 0.8 triggers re-jam)
+- Be specific with subtasks
+
+Output ONLY valid JSON:
+{
+  "tasks": [
+    {"agent": "analyst", "subtask": "...", "weight": 0.25, "priority": 1},
+    {"agent": "relational", "subtask": "...", "weight": 0.25, "priority": 1},
+    {"agent": "ethics", "subtask": "...", "weight": 0.25, "priority": 1},
+    {"agent": "verification", "subtask": "...", "weight": 0.25, "priority": 1}
+  ],
+  "strategy": "parallel",
+  "reasoning": "Brief explanation"
+}`;
+  }
+
+  /**
    * Detect if query requires factual verification (boosts Verification weight to 30%)
    */
   private isFactualQuery(query: string): boolean {
@@ -189,9 +275,11 @@ Remember: All 4 agents must contribute. Output JSON only.`;
    * Validate task plan and normalize weights to sum to 1.0
    */
   private validateAndNormalize(plan: TaskPlan, query: string): TaskPlan {
-    // Ensure we have exactly 4 tasks
-    if (!plan.tasks || plan.tasks.length !== 4) {
-      this.logger.warn('⚠️  Invalid task count, using fallback');
+    // Accept both 3 and 4 agent plans
+    const expectedCount = this.isSimpleQuery(query) ? 3 : 4;
+    
+    if (!plan.tasks || plan.tasks.length !== expectedCount) {
+      this.logger.warn(`⚠️  Invalid task count (got ${plan.tasks?.length}, expected ${expectedCount}), using fallback`);
       return this.createBalancedFallback(query);
     }
 

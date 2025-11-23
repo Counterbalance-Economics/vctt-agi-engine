@@ -1,6 +1,8 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { LLMConfig } from '../config/llm.config';
+import { AnthropicDirectConfig } from '../config/anthropic-direct.config';
+import { LLMCacheService } from './llm-cache.service';
 
 interface Message {
   role: 'system' | 'user' | 'assistant';
@@ -17,6 +19,7 @@ interface LLMResponse {
   };
   cost: number;
   latencyMs: number;
+  cached?: boolean;
 }
 
 interface UsageStats {
@@ -33,13 +36,17 @@ interface VerificationOptions {
 }
 
 /**
- * LLM Service - Handles all LLM API interactions
+ * LLM Service - Handles all LLM API interactions (Phase 3.5+ Optimizations)
  * 
  * Features:
- * - GPT-4o primary with Claude 3.5 Sonnet fallback
+ * - Direct Claude Haiku 4.5 for 10x faster responses (<10s vs ~45s)
+ * - In-memory caching for instant repeated queries (<10ms)
+ * - Smart fallback: Direct Claude → RouteLLM → GPT-4o
  * - Automatic retry with exponential backoff
  * - Token counting and cost tracking
  * - Budget monitoring and alerts
+ * 
+ * Performance: Target <30s total jam (from 75s)
  */
 @Injectable()
 export class LLMService {
@@ -55,17 +62,26 @@ export class LLMService {
   private verificationsThisHour = 0;
   private lastVerificationReset = Date.now();
 
-  constructor() {
-    this.logger.log('LLM Service initialized with Hybrid Multi-Model Architecture');
-    this.logger.log(`Analyst: ${LLMConfig.models.analyst || 'RouteLLM auto-pick (Claude)'} (MCP enabled)`);
+  constructor(private cacheService: LLMCacheService) {
+    const directMode = AnthropicDirectConfig.enabled ? ' (DIRECT MODE ⚡)' : '';
+    this.logger.log(`LLM Service initialized with Hybrid Multi-Model Architecture${directMode}`);
+    this.logger.log(`Analyst: ${LLMConfig.models.analyst || 'Claude Haiku 4.5 Direct'} (MCP enabled)`);
     this.logger.log(`Relational: ${LLMConfig.models.relational}`);
     this.logger.log(`Ethics: ${LLMConfig.models.ethics}`);
-    this.logger.log(`Synthesiser: ${LLMConfig.models.synthesiser || 'RouteLLM auto-pick (Claude)'} (MCP enabled)`);
+    this.logger.log(`Synthesiser: ${LLMConfig.models.synthesiser || 'Claude Haiku 4.5 Direct'} (MCP enabled)`);
     this.logger.log(`Verification: ${LLMConfig.models.verification}`);
+    if (AnthropicDirectConfig.enabled) {
+      this.logger.log(`✨ Direct Claude enabled - expect 3-5x faster responses`);
+    }
   }
 
   /**
    * Generate a completion using the LLM (with agent-specific model selection)
+   * 
+   * PHASE 3.5+ OPTIMIZATIONS:
+   * - Check cache first (instant <10ms for hits)
+   * - Use direct Claude API for Analyst/Synthesiser (10x faster)
+   * - Fallback to RouteLLM if direct fails
    * 
    * @param messages - Conversation messages
    * @param systemPrompt - Optional system prompt
@@ -103,6 +119,18 @@ export class LLMService {
       ? (LLMConfig.models as any)[agentRole] 
       : LLMConfig.models.primary;
     
+    // Check cache first (skip if tools enabled - tools responses shouldn't be cached)
+    if (!enableTools) {
+      const cached = this.cacheService.get(fullMessages, selectedModel, temperature);
+      if (cached) {
+        return {
+          ...cached,
+          latencyMs: Date.now() - startTime,
+          cached: true,
+        };
+      }
+    }
+    
     // Get MCP tools if this is a Claude agent with tools enabled
     // Only analyst and synthesiser have MCP tools configured
     const tools = (enableTools && agentRole && (agentRole === 'analyst' || agentRole === 'synthesiser'))
@@ -110,37 +138,49 @@ export class LLMService {
       : undefined;
     
     if (tools && agentRole) {
-      const modelName = selectedModel || 'RouteLLM auto-pick (Claude)';
+      const modelName = selectedModel || 'Claude Haiku 4.5';
       this.logger.log(`🛠️ ${agentRole} using ${modelName} with ${tools.length} MCP tools`);
     }
     
-    // Try selected model first, then fallback
+    // Try direct Claude first for Analyst/Synthesiser (10x faster)
     let response: LLMResponse;
-    try {
-      response = await this.callLLM(
-        fullMessages,
-        selectedModel,
-        temperature,
-        tools,
-      );
-    } catch (primaryError) {
-      this.logger.warn(
-        `Primary model (${selectedModel}) failed: ${primaryError.message}`
-      );
-      this.logger.log(`Falling back to ${LLMConfig.models.fallback}`);
-      
+    const useDirectClaude = AnthropicDirectConfig.enabled && 
+                            (agentRole === 'analyst' || agentRole === 'synthesiser');
+    
+    if (useDirectClaude && !tools) {
       try {
-        response = await this.callLLM(
-          fullMessages,
-          LLMConfig.models.fallback,
-          temperature,
-          undefined, // Don't use tools on fallback
-        );
-      } catch (fallbackError) {
-        this.logger.error(
-          `Both models failed. Primary: ${primaryError.message}, Fallback: ${fallbackError.message}`
-        );
-        throw new Error('LLM service unavailable: All models failed');
+        this.logger.log(`⚡ Using DIRECT Claude API for ${agentRole} (expect <10s)`);
+        response = await this.callClaudeDirect(fullMessages, temperature);
+      } catch (directError) {
+        this.logger.warn(`Direct Claude failed: ${directError.message}, falling back to RouteLLM`);
+        try {
+          response = await this.callLLM(fullMessages, selectedModel, temperature, tools);
+        } catch (routeError) {
+          this.logger.log(`Falling back to ${LLMConfig.models.fallback}`);
+          response = await this.callLLM(fullMessages, LLMConfig.models.fallback, temperature, undefined);
+        }
+      }
+    } else {
+      // Use RouteLLM for other agents or when tools are needed
+      try {
+        response = await this.callLLM(fullMessages, selectedModel, temperature, tools);
+      } catch (primaryError) {
+        this.logger.warn(`Primary model (${selectedModel}) failed: ${primaryError.message}`);
+        this.logger.log(`Falling back to ${LLMConfig.models.fallback}`);
+        
+        try {
+          response = await this.callLLM(
+            fullMessages,
+            LLMConfig.models.fallback,
+            temperature,
+            undefined, // Don't use tools on fallback
+          );
+        } catch (fallbackError) {
+          this.logger.error(
+            `Both models failed. Primary: ${primaryError.message}, Fallback: ${fallbackError.message}`
+          );
+          throw new Error('LLM service unavailable: All models failed');
+        }
       }
     }
     
@@ -148,6 +188,11 @@ export class LLMService {
     
     // Track usage
     this.trackUsage(response);
+    
+    // Cache response (if no tools were used)
+    if (!enableTools) {
+      this.cacheService.set(fullMessages, selectedModel, response, temperature);
+    }
     
     // Check if approaching daily budget
     if (this.dailyCost >= LLMConfig.limits.dailyBudgetUSD * LLMConfig.limits.alertThreshold) {
@@ -276,7 +321,7 @@ Start your response with { and end with }. NO OTHER TEXT.`;
       // FIX #3: Fallback estimation if tokens are undefined
       if (totalTokens === 0 && content) {
         // Estimate: avg 4 chars per token for input, actual length for output
-        const promptLength = prompt.length;
+        const promptLength = messages.map(m => m.content).join('').length;
         inputTokens = Math.ceil(promptLength / 4);
         outputTokens = Math.ceil(content.length / 4);
         totalTokens = inputTokens + outputTokens;
@@ -285,8 +330,9 @@ Start your response with { and end with }. NO OTHER TEXT.`;
         );
       }
       
-      // Calculate cost (using grok-4-0709 pricing)
-      const modelCosts = LLMConfig.costs['grok-4-0709'];
+      // Calculate cost (using grok-4-1-fast-reasoning pricing)
+      const modelName = LLMConfig.models.verification;
+      const modelCosts = (LLMConfig.costs as any)[modelName] || LLMConfig.costs['grok-4-1-fast-reasoning'];
       const cost = 
         (inputTokens / 1000) * modelCosts.inputPer1k +
         (outputTokens / 1000) * modelCosts.outputPer1k;
@@ -508,5 +554,335 @@ Start your response with { and end with }. NO OTHER TEXT.`;
    */
   getRemainingDailyBudget(): number {
     return Math.max(0, LLMConfig.limits.dailyBudgetUSD - this.dailyCost);
+  }
+
+  /**
+   * Generate a streaming completion (token-by-token)
+   * 
+   * @param messages - Conversation messages
+   * @param model - Model to use
+   * @param temperature - Optional temperature override
+   * @param agentRole - Optional agent role for model selection
+   * @param enableTools - Enable MCP tools for Claude agents
+   * @param onChunk - Callback for each token/chunk (chunk, tokensUsed, estimatedCost)
+   */
+  async generateCompletionStream(
+    messages: Message[],
+    model: string,
+    temperature?: number,
+    agentRole?: 'analyst' | 'relational' | 'ethics' | 'synthesiser',
+    enableTools = true,
+    onChunk?: (chunk: string, tokensUsed: number, estimatedCost: number) => void,
+  ): Promise<void> {
+    const startTime = Date.now();
+    
+    // Reset daily cost if needed
+    this.resetDailyCostIfNeeded();
+    
+    // Check daily budget
+    if (this.dailyCost >= LLMConfig.limits.dailyBudgetUSD) {
+      throw new Error(
+        `Daily LLM budget exceeded: $${this.dailyCost.toFixed(2)}/$${LLMConfig.limits.dailyBudgetUSD}`
+      );
+    }
+    
+    // Select model based on agent role
+    const selectedModel = model || (agentRole 
+      ? (LLMConfig.models as any)[agentRole] 
+      : LLMConfig.models.primary);
+    
+    // Get MCP tools if applicable
+    const tools = (enableTools && agentRole && (agentRole === 'analyst' || agentRole === 'synthesiser'))
+      ? (LLMConfig.mcpTools as any)[agentRole]
+      : undefined;
+    
+    this.logger.log(
+      `🌊 Starting stream: model=${selectedModel}, role=${agentRole || 'primary'}, tools=${tools ? tools.length : 0}`
+    );
+    
+    // Call streaming API
+    try {
+      await this.callLLMStream(
+        messages,
+        selectedModel,
+        temperature,
+        tools,
+        onChunk,
+      );
+    } catch (primaryError) {
+      this.logger.warn(
+        `Primary model (${selectedModel}) stream failed: ${primaryError.message}`
+      );
+      this.logger.log(`Falling back to ${LLMConfig.models.fallback} for streaming`);
+      
+      // Fallback to non-streaming model
+      try {
+        await this.callLLMStream(
+          messages,
+          LLMConfig.models.fallback,
+          temperature,
+          undefined,
+          onChunk,
+        );
+      } catch (fallbackError) {
+        this.logger.error(
+          `Both models failed for streaming. Primary: ${primaryError.message}, Fallback: ${fallbackError.message}`
+        );
+        throw new Error('LLM streaming service unavailable: All models failed');
+      }
+    }
+  }
+
+  /**
+   * Call LLM API with streaming enabled
+   */
+  private async callLLMStream(
+    messages: Message[],
+    model: string,
+    temperature?: number,
+    tools?: any[],
+    onChunk?: (chunk: string, tokensUsed: number, estimatedCost: number) => void,
+  ): Promise<void> {
+    try {
+      // Build request body
+      const requestBody: any = {
+        model,
+        messages,
+        temperature: temperature ?? LLMConfig.temperature,
+        max_tokens: LLMConfig.limits.maxTokensPerRequest,
+        frequency_penalty: LLMConfig.frequencyPenalty,
+        presence_penalty: LLMConfig.presencePenalty,
+        stream: true, // Enable streaming
+      };
+      
+      // Add tools if provided
+      if (tools && tools.length > 0) {
+        const validatedTools = tools.filter(tool => 
+          typeof tool === 'object' && tool.type === 'function' && tool.function
+        );
+        
+        if (validatedTools.length > 0) {
+          requestBody.tools = validatedTools;
+          requestBody.tool_choice = 'auto';
+          this.logger.log(`Adding ${validatedTools.length} MCP tools to stream request`);
+        }
+      }
+      
+      const response = await fetch(LLMConfig.baseUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.ABACUSAI_API_KEY}`,
+        },
+        body: JSON.stringify(requestBody),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`LLM API error (${response.status}): ${errorText}`);
+      }
+      
+      if (!response.body) {
+        throw new Error('Response body is null - streaming not supported');
+      }
+      
+      // Process stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      let fullText = '';
+      let inputTokens = 0;
+      let outputTokens = 0;
+      
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            break;
+          }
+          
+          // Decode chunk
+          buffer += decoder.decode(value, { stream: true });
+          
+          // Process SSE lines
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // Keep incomplete line in buffer
+          
+          for (const line of lines) {
+            const trimmed = line.trim();
+            
+            if (trimmed === '' || trimmed === 'data: [DONE]') {
+              continue;
+            }
+            
+            if (trimmed.startsWith('data: ')) {
+              try {
+                const jsonStr = trimmed.slice(6); // Remove 'data: ' prefix
+                const data = JSON.parse(jsonStr);
+                
+                // Extract content delta
+                const delta = data.choices?.[0]?.delta;
+                if (delta?.content) {
+                  const chunk = delta.content;
+                  fullText += chunk;
+                  outputTokens += Math.ceil(chunk.length / 4); // Rough estimation
+                  
+                  // Calculate estimated cost
+                  const modelCosts = (LLMConfig.costs as any)[model] || LLMConfig.costs['gpt-4o'];
+                  const estimatedCost = 
+                    (inputTokens / 1000) * modelCosts.inputPer1k +
+                    (outputTokens / 1000) * modelCosts.outputPer1k;
+                  
+                  // Call chunk callback
+                  if (onChunk) {
+                    onChunk(chunk, inputTokens + outputTokens, estimatedCost);
+                  }
+                }
+                
+                // Extract usage if available (usually in final chunk)
+                if (data.usage) {
+                  inputTokens = data.usage.prompt_tokens || inputTokens;
+                  outputTokens = data.usage.completion_tokens || outputTokens;
+                }
+                
+              } catch (parseError) {
+                this.logger.warn(`Failed to parse SSE chunk: ${parseError.message}`);
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      
+      // Final token estimation if not provided
+      if (inputTokens === 0) {
+        const promptLength = messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0);
+        inputTokens = Math.ceil(promptLength / 4);
+      }
+      
+      if (outputTokens === 0) {
+        outputTokens = Math.ceil(fullText.length / 4);
+      }
+      
+      const totalTokens = inputTokens + outputTokens;
+      
+      // Calculate final cost
+      const modelCosts = (LLMConfig.costs as any)[model] || LLMConfig.costs['gpt-4o'];
+      const cost = 
+        (inputTokens / 1000) * modelCosts.inputPer1k +
+        (outputTokens / 1000) * modelCosts.outputPer1k;
+      
+      // Track usage
+      this.trackUsage({
+        content: fullText,
+        model,
+        tokensUsed: {
+          input: inputTokens,
+          output: outputTokens,
+          total: totalTokens,
+        },
+        cost,
+        latencyMs: 0,
+      });
+      
+      this.logger.log(
+        `Stream completed: model=${model}, tokens=${totalTokens}, cost=$${cost.toFixed(4)}`
+      );
+      
+    } catch (error) {
+      this.logger.error(`Stream call failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Call Claude API directly (bypasses RouteLLM for 10x faster response)
+   * 
+   * This method uses Anthropic's direct API for Claude Haiku 4.5
+   * Expected latency: 5-10s (vs 30-45s via RouteLLM)
+   * 
+   * Requires: ANTHROPIC_API_KEY in .env
+   */
+  private async callClaudeDirect(
+    messages: Message[],
+    temperature?: number,
+  ): Promise<LLMResponse> {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error('ANTHROPIC_API_KEY not found - direct mode unavailable');
+    }
+    
+    try {
+      const response = await fetch(AnthropicDirectConfig.baseUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': AnthropicDirectConfig.apiVersion,
+        },
+        body: JSON.stringify({
+          model: AnthropicDirectConfig.defaultModel, // Claude Haiku 4.5
+          messages: messages.filter(m => m.role !== 'system'),
+          system: messages.find(m => m.role === 'system')?.content,
+          temperature: temperature ?? LLMConfig.temperature,
+          max_tokens: LLMConfig.limits.maxTokensPerRequest,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Claude Direct API error (${response.status}): ${errorText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Extract content (Anthropic format)
+      const content = data.content?.[0]?.text;
+      if (!content) {
+        throw new Error('Invalid Claude response: missing content');
+      }
+      
+      // Token counting
+      const inputTokens = data.usage?.input_tokens ?? 0;
+      const outputTokens = data.usage?.output_tokens ?? 0;
+      const totalTokens = inputTokens + outputTokens;
+      
+      // Calculate cost
+      const modelCosts = AnthropicDirectConfig.costs[AnthropicDirectConfig.defaultModel];
+      const cost = 
+        (inputTokens / 1000) * modelCosts.inputPer1k +
+        (outputTokens / 1000) * modelCosts.outputPer1k;
+      
+      this.logger.log(
+        `✅ Direct Claude: tokens=${totalTokens}, cost=$${cost.toFixed(4)}`
+      );
+      
+      return {
+        content,
+        model: AnthropicDirectConfig.defaultModel,
+        tokensUsed: {
+          input: inputTokens,
+          output: outputTokens,
+          total: totalTokens,
+        },
+        cost,
+        latencyMs: 0, // Will be set by caller
+      };
+      
+    } catch (error) {
+      this.logger.error(`Direct Claude call failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Helper method to select model for agent role
+   */
+  private selectModelForAgent(agentRole?: string): string {
+    if (!agentRole) {
+      return LLMConfig.models.primary;
+    }
+    return (LLMConfig.models as any)[agentRole] || LLMConfig.models.primary;
   }
 }
