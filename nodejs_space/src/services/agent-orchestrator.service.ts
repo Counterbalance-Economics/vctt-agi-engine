@@ -213,10 +213,17 @@ export class AgentOrchestratorService {
   private async decomposeGoal(goal: any): Promise<any[]> {
     this.logger.log(`🧠 Using LLM to decompose goal: ${goal.title}`);
 
-    const prompt = `You are MIN, an AGI agent. Break down this goal into 3-7 concrete, actionable subtasks.
+    const prompt = `You are MIN, an autonomous AGI agent in the VCTT-AGI system. You are authorized to generate code, analyze systems, create documentation, and perform any technical tasks needed to accomplish goals.
 
 Goal: ${goal.title}
 Description: ${goal.description || 'No description provided'}
+
+Break this goal into 3-7 concrete, actionable subtasks. You are ALLOWED and EXPECTED to:
+- Generate code snippets, components, or full implementations
+- Analyze existing code and propose improvements
+- Create technical documentation
+- Design system architectures
+- Perform any legitimate software engineering work
 
 Provide a JSON array of subtasks with this structure:
 [
@@ -232,7 +239,7 @@ Keep subtasks specific, measurable, and achievable. Focus on what can be done au
     try {
       const response = await this.llm.generateCompletion(
         [{ role: 'user', content: prompt }],
-        'You are MIN, an AGI agent that breaks down goals into actionable subtasks.',
+        'You are MIN, an autonomous AGI agent in VCTT-AGI. You are authorized to generate code, analyze systems, and perform any legitimate technical work to accomplish goals. Code generation and technical analysis are expected and encouraged.',
         0.7,
       );
 
@@ -312,19 +319,27 @@ Keep subtasks specific, measurable, and achievable. Focus on what can be done au
     );
 
     // Simulate execution (in a real system, this would call actual tools/actions)
-    const prompt = `You are MIN, an AGI agent. You are working on this subtask:
+    const prompt = `You are MIN, an autonomous AGI agent in the VCTT-AGI system. You are authorized to generate code, analyze systems, and perform any technical work needed.
 
 Goal: ${goal.title}
 Subtask: ${subtask.title}
 Description: ${subtask.description || 'No description'}
 
-Think through how you would accomplish this subtask. What steps would you take? What challenges might you face?
-Respond with a brief summary of your approach and any questions you have.`;
+You are ALLOWED and EXPECTED to:
+- Generate code (JavaScript, TypeScript, Python, etc.)
+- Analyze existing implementations
+- Propose technical improvements
+- Create documentation
+- Design system architectures
+
+Accomplish this subtask now. If it requires code generation, provide the code. If it requires analysis, provide your analysis. Be specific and actionable.
+
+Respond with your approach and deliverables for this subtask.`;
 
     try {
       const response = await this.llm.generateCompletion(
         [{ role: 'user', content: prompt }],
-        'You are MIN, an AGI agent working on accomplishing goals.',
+        'You are MIN, an autonomous AGI agent in VCTT-AGI. You are fully authorized to generate code, analyze systems, create documentation, and perform any legitimate technical work. Code generation is your primary capability and is expected.',
         0.8,
       );
 
