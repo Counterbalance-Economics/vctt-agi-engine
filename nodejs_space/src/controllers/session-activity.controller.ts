@@ -142,30 +142,57 @@ export class SessionActivityController {
   }
 
   /**
-   * Get activities for a specific goal/subtask
+   * Get activities for a specific goal (without subtask)
    * GET /api/session-activity/task/:goalId
-   * GET /api/session-activity/task/:goalId/:subtaskId
    */
-  @Get('task/:goalId/:subtaskId?')
-  async getActivitiesForTask(
-    @Param('goalId') goalId: string,
-    @Param('subtaskId') subtaskId?: string,
-  ) {
+  @Get('task/:goalId')
+  async getActivitiesForGoal(@Param('goalId') goalId: string) {
     try {
       const activities = await this.activityService.getActivitiesForTask(
         parseInt(goalId),
-        subtaskId ? parseInt(subtaskId) : undefined
+        undefined
       );
 
       return {
         success: true,
         goal_id: parseInt(goalId),
-        subtask_id: subtaskId ? parseInt(subtaskId) : null,
+        subtask_id: null,
         activities,
         count: activities.length,
       };
     } catch (error) {
-      this.logger.error(`Failed to get task activities: ${error.message}`);
+      this.logger.error(`Failed to get goal activities: ${error.message}`);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Get activities for a specific goal + subtask
+   * GET /api/session-activity/task/:goalId/subtask/:subtaskId
+   */
+  @Get('task/:goalId/subtask/:subtaskId')
+  async getActivitiesForSubtask(
+    @Param('goalId') goalId: string,
+    @Param('subtaskId') subtaskId: string,
+  ) {
+    try {
+      const activities = await this.activityService.getActivitiesForTask(
+        parseInt(goalId),
+        parseInt(subtaskId)
+      );
+
+      return {
+        success: true,
+        goal_id: parseInt(goalId),
+        subtask_id: parseInt(subtaskId),
+        activities,
+        count: activities.length,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get subtask activities: ${error.message}`);
       return {
         success: false,
         error: error.message,
