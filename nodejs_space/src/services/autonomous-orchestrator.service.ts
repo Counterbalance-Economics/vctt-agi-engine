@@ -518,24 +518,27 @@ export class AutonomousOrchestratorService {
         this.logger.log(`📦 Artifact stored: ${artifact.name} (${artifact.type})`);
       }
 
-      // Update execution queue
-      await db.query(`
+      // Update execution queue and get queue_id
+      const queueResult = await db.query(`
         UPDATE execution_queue
         SET status = 'completed',
             completed_at = CURRENT_TIMESTAMP
         WHERE goal_id = $1
         AND session_id = $2
         AND status = 'processing'
+        RETURNING id
       `, [goalId, sessionId]);
 
-      // Log completion
-      await this.logExecution(
-        0, // queue_id placeholder
-        goalId,
-        'info',
-        `Goal completed with ${artifacts.length} artifacts`,
-        { session_id: sessionId, artifact_count: artifacts.length }
-      );
+      // Log completion only if we have a valid queue entry
+      if (queueResult.length > 0) {
+        await this.logExecution(
+          queueResult[0].id,
+          goalId,
+          'info',
+          `Goal completed with ${artifacts.length} artifacts`,
+          { session_id: sessionId, artifact_count: artifacts.length }
+        );
+      }
 
       // Broadcast completion (optional - add to gateway if needed)
       // this.gateway.broadcastGoalCompletion(goalId, artifacts.length);
