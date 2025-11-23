@@ -48,6 +48,7 @@ import { SafetyController } from './controllers/safety.controller';
 import { MemoryController } from './controllers/memory.controller';
 import { KnowledgeController } from './controllers/knowledge.controller';
 import { GoalController } from './controllers/goal.controller';
+import { SystemController } from './controllers/system.controller';
 import { ExecutionController } from './controllers/execution.controller';
 import { SchedulerController } from './controllers/scheduler.controller';
 import { ToolsController } from './tools/tools.controller';
@@ -193,6 +194,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     MemoryController, // Memory & Consent APIs (Stage 1)
     KnowledgeController, // Knowledge Graph APIs (Stage 2)
     GoalController, // Goal System APIs (Stage 3)
+    SystemController, // System Diagnostics
     ExecutionController, // Autonomous Goal Execution (Stage 3)
     SchedulerController, // Autonomous Task Scheduling (Stage 4)
     ToolsController, // Tool Orchestration (Stage 4)
