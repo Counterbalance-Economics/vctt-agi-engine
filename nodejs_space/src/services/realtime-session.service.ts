@@ -82,7 +82,14 @@ export class RealTimeSessionService {
     } catch (error) {
       this.logger.error(`❌ Failed to spawn DeepAgent session: ${error.message}`);
       
-      // Fallback: Create a local simulation session
+      // Determine mode based on available API keys
+      const hasOpenAI = !!process.env.OPENAI_API_KEY;
+      const hasAbacusAI = !!process.env.ABACUSAI_API_KEY;
+      const mode = (hasOpenAI || hasAbacusAI) ? 'reality' : 'simulation';
+      
+      this.logger.log(`🎯 Creating fallback session in ${mode.toUpperCase()} mode (OpenAI: ${hasOpenAI}, AbacusAI: ${hasAbacusAI})`);
+      
+      // Fallback: Create a local session (reality or simulation based on API keys)
       const fallbackSession: RealTimeSession = {
         session_id: `fallback-${goalId}-${Date.now()}`,
         status: 'running',
@@ -91,7 +98,7 @@ export class RealTimeSessionService {
           goal_id: goalId,
           title: goalTitle,
           description: goalDescription,
-          mode: 'simulation',
+          mode: mode,
         },
       };
 

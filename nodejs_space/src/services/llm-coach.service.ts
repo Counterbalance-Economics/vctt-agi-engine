@@ -35,19 +35,31 @@ export class LLMCoachService {
   }
 
   /**
-   * Load xAI API key from secrets file
+   * Load xAI API key from environment or secrets file
    */
   private loadApiKey() {
     try {
-      const secretsPath = path.join(process.env.HOME || '/home/ubuntu', '.config', 'abacusai_auth_secrets.json');
-      const secrets = JSON.parse(fs.readFileSync(secretsPath, 'utf8'));
-      this.xaiApiKey = secrets?.xai?.secrets?.api_key?.value || '';
+      // First try environment variable (for production/Render)
+      this.xaiApiKey = process.env.XAI_API_KEY || '';
       
       if (this.xaiApiKey) {
-        this.logger.log('✅ xAI API key loaded successfully');
-      } else {
-        this.logger.warn('⚠️  xAI API key not found - coach analysis will be degraded');
+        this.logger.log('✅ xAI API key loaded from environment');
+        return;
       }
+
+      // Fallback to secrets file (for local development)
+      const secretsPath = path.join(process.env.HOME || '/home/ubuntu', '.config', 'abacusai_auth_secrets.json');
+      if (fs.existsSync(secretsPath)) {
+        const secrets = JSON.parse(fs.readFileSync(secretsPath, 'utf8'));
+        this.xaiApiKey = secrets?.xai?.secrets?.api_key?.value || '';
+        
+        if (this.xaiApiKey) {
+          this.logger.log('✅ xAI API key loaded from secrets file');
+          return;
+        }
+      }
+      
+      this.logger.warn('⚠️  xAI API key not found - coach analysis will be degraded');
     } catch (error) {
       this.logger.error(`Failed to load xAI API key: ${error.message}`);
     }
@@ -70,7 +82,7 @@ export class LLMCoachService {
       const response = await axios.post(
         'https://api.x.ai/v1/chat/completions',
         {
-          model: 'grok-beta',
+          model: 'grok-2-latest',
           messages: [
             {
               role: 'system',
@@ -219,7 +231,7 @@ Provide a 3-5 step action plan (2-3 sentences max). Be direct and practical.
       const response = await axios.post(
         'https://api.x.ai/v1/chat/completions',
         {
-          model: 'grok-beta',
+          model: 'grok-2-latest',
           messages: [
             { role: 'system', content: 'You are MIN, a pragmatic AI coach. Be concise and actionable.' },
             { role: 'user', content: prompt }
