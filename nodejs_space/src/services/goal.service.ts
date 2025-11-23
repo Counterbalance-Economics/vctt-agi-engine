@@ -391,4 +391,163 @@ export class GoalService {
       );
     }
   }
+
+  /**
+   * Get activity log for a goal
+   */
+  async getActivity(goalId: number, limit: number = 50): Promise<any[]> {
+    try {
+      // Check goal exists
+      const goal = await this.prisma.goals.findUnique({
+        where: { id: goalId },
+      });
+
+      if (!goal) {
+        throw new HttpException('Goal not found', HttpStatus.NOT_FOUND);
+      }
+
+      const activity = await this.prisma.goal_activity_logs.findMany({
+        where: { goal_id: goalId },
+        orderBy: { created_at: 'desc' },
+        take: limit,
+      });
+
+      return activity;
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Error fetching activity:', error);
+      throw new HttpException(
+        'Failed to fetch activity',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * Log activity for a goal
+   */
+  async logActivity(
+    goalId: number,
+    actor: string,
+    activityType: string,
+    message: string,
+    metadata?: any
+  ): Promise<any> {
+    try {
+      // Check goal exists
+      const goal = await this.prisma.goals.findUnique({
+        where: { id: goalId },
+      });
+
+      if (!goal) {
+        throw new HttpException('Goal not found', HttpStatus.NOT_FOUND);
+      }
+
+      const activity = await this.prisma.goal_activity_logs.create({
+        data: {
+          goal_id: goalId,
+          actor,
+          activity_type: activityType,
+          message,
+          metadata: metadata || {},
+        },
+      });
+
+      this.logger.log(`📝 Activity logged for goal ${goalId}: ${activityType}`);
+      return activity;
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Error logging activity:', error);
+      throw new HttpException(
+        'Failed to log activity',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * Get subtasks for a goal
+   */
+  async getSubtasks(goalId: number): Promise<any[]> {
+    try {
+      // Check goal exists
+      const goal = await this.prisma.goals.findUnique({
+        where: { id: goalId },
+      });
+
+      if (!goal) {
+        throw new HttpException('Goal not found', HttpStatus.NOT_FOUND);
+      }
+
+      const subtasks = await this.prisma.goal_subtasks.findMany({
+        where: { goal_id: goalId },
+        orderBy: { order_index: 'asc' },
+      });
+
+      return subtasks;
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Error fetching subtasks:', error);
+      throw new HttpException(
+        'Failed to fetch subtasks',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * Create subtasks for a goal
+   */
+  async createSubtasks(
+    goalId: number,
+    subtasksData: Array<{ title: string; description?: string; estimatedEffort?: string }>
+  ): Promise<any[]> {
+    try {
+      // Check goal exists
+      const goal = await this.prisma.goals.findUnique({
+        where: { id: goalId },
+      });
+
+      if (!goal) {
+        throw new HttpException('Goal not found', HttpStatus.NOT_FOUND);
+      }
+
+      // Create subtasks
+      const createdSubtasks = [];
+      for (let i = 0; i < subtasksData.length; i++) {
+        const subtaskData = subtasksData[i];
+        const subtask = await this.prisma.goal_subtasks.create({
+          data: {
+            goal_id: goalId,
+            title: subtaskData.title,
+            description: subtaskData.description,
+            estimated_effort: subtaskData.estimatedEffort || 'medium',
+            order_index: i,
+            status: 'pending',
+            created_by: 'human',
+          },
+        });
+        createdSubtasks.push(subtask);
+      }
+
+      // Log activity
+      await this.logActivity(
+        goalId,
+        'human',
+        'subtask_created',
+        `Created ${createdSubtasks.length} subtasks manually`,
+        { subtasks: createdSubtasks.map(st => st.title) }
+      );
+
+      this.logger.log(`✅ Created ${createdSubtasks.length} subtasks for goal ${goalId}`);
+      return createdSubtasks;
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Error creating subtasks:', error);
+      throw new HttpException(
+        'Failed to create subtasks',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 }

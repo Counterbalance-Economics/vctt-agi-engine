@@ -24,6 +24,7 @@ import { GoalService } from './services/goal.service';
 import { StateInjectionService } from './services/state-injection.service';
 import { SchedulerService } from './services/scheduler.service';
 import { SystemIntegrityService } from './services/system-integrity.service';
+import { AgentOrchestratorService } from './services/agent-orchestrator.service';
 import { ToolsService } from './tools/tools.service';
 import { EvaluationService } from './evaluation/evaluation.service';
 import { SkillsService } from './skills/skills.service';
@@ -38,6 +39,7 @@ import { SafetyController } from './controllers/safety.controller';
 import { MemoryController } from './controllers/memory.controller';
 import { KnowledgeController } from './controllers/knowledge.controller';
 import { GoalController } from './controllers/goal.controller';
+import { ExecutionController } from './controllers/execution.controller';
 import { SchedulerController } from './controllers/scheduler.controller';
 import { ToolsController } from './tools/tools.controller';
 import { EvaluationController } from './evaluation/evaluation.controller';
@@ -119,6 +121,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     ConceptHierarchyService, // Concept hierarchies (Stage 2)
     GoalService, // Goal system (Stage 3)
     StateInjectionService, // State awareness (Stage 3)
+    AgentOrchestratorService, // Autonomous goal execution (Stage 3)
     SchedulerService, // Autonomous task scheduling (Stage 4)
     SystemIntegrityService, // MIN self-diagnostic & daily review (Stage 5)
     ToolsService, // Tool orchestration (Stage 4)
@@ -162,6 +165,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     MemoryController, // Memory & Consent APIs (Stage 1)
     KnowledgeController, // Knowledge Graph APIs (Stage 2)
     GoalController, // Goal System APIs (Stage 3)
+    ExecutionController, // Autonomous Goal Execution (Stage 3)
     SchedulerController, // Autonomous Task Scheduling (Stage 4)
     ToolsController, // Tool Orchestration (Stage 4)
     EvaluationController, // Self-Evaluation & Coach (Stage 4/5)

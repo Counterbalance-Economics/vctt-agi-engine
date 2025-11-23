@@ -332,4 +332,94 @@ export class GoalController {
       throw error;
     }
   }
+
+  @Get(':id/activity')
+  @ApiOperation({ summary: 'Get activity log for a goal' })
+  @ApiResponse({ status: 200, description: 'Activity log retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Goal not found' })
+  async getActivity(@Param('id') id: string, @Query('limit') limit?: string) {
+    try {
+      const activityLimit = limit ? parseInt(limit) : 50;
+      const activity = await this.goalService.getActivity(parseInt(id), activityLimit);
+      return {
+        success: true,
+        timestamp: new Date().toISOString(),
+        count: activity.length,
+        activity,
+      };
+    } catch (error) {
+      this.logger.error('Error fetching activity:', error);
+      throw error;
+    }
+  }
+
+  @Post(':id/activity')
+  @BypassRegulation()
+  @ApiOperation({ summary: 'Add activity log entry' })
+  @ApiResponse({ status: 201, description: 'Activity logged successfully' })
+  @ApiResponse({ status: 404, description: 'Goal not found' })
+  async logActivity(
+    @Param('id') id: string,
+    @Body() dto: { actor: string; activityType: string; message: string; metadata?: any }
+  ) {
+    try {
+      const activity = await this.goalService.logActivity(
+        parseInt(id),
+        dto.actor,
+        dto.activityType,
+        dto.message,
+        dto.metadata
+      );
+      return {
+        success: true,
+        timestamp: new Date().toISOString(),
+        activity,
+      };
+    } catch (error) {
+      this.logger.error('Error logging activity:', error);
+      throw error;
+    }
+  }
+
+  @Get(':id/subtasks')
+  @ApiOperation({ summary: 'Get subtasks for a goal' })
+  @ApiResponse({ status: 200, description: 'Subtasks retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Goal not found' })
+  async getSubtasks(@Param('id') id: string) {
+    try {
+      const subtasks = await this.goalService.getSubtasks(parseInt(id));
+      return {
+        success: true,
+        timestamp: new Date().toISOString(),
+        count: subtasks.length,
+        subtasks,
+      };
+    } catch (error) {
+      this.logger.error('Error fetching subtasks:', error);
+      throw error;
+    }
+  }
+
+  @Post(':id/subtasks')
+  @BypassRegulation()
+  @ApiOperation({ summary: 'Create subtasks for a goal' })
+  @ApiResponse({ status: 201, description: 'Subtasks created successfully' })
+  @ApiResponse({ status: 404, description: 'Goal not found' })
+  async createSubtasks(
+    @Param('id') id: string,
+    @Body() dto: { subtasks: Array<{ title: string; description?: string; estimatedEffort?: string }> }
+  ) {
+    try {
+      const subtasks = await this.goalService.createSubtasks(parseInt(id), dto.subtasks);
+      return {
+        success: true,
+        timestamp: new Date().toISOString(),
+        count: subtasks.length,
+        subtasks,
+      };
+    } catch (error) {
+      this.logger.error('Error creating subtasks:', error);
+      throw error;
+    }
+  }
 }
