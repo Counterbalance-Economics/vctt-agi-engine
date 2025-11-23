@@ -30,7 +30,9 @@ import { EvaluationService } from './evaluation/evaluation.service';
 import { SkillsService } from './skills/skills.service';
 import { CoachService } from './coach/coach.service';
 import { DeepAgentSessionService } from './services/deepagent-session.service';
+import { SessionActivityService } from './services/session-activity.service';
 import { SessionController } from './controllers/session.controller';
+import { SessionActivityController } from './controllers/session-activity.controller';
 import { HealthController } from './controllers/health.controller';
 import { AnalyticsController } from './controllers/analytics.controller';
 import { LLMCommitteeController } from './controllers/llm-committee.controller';
@@ -131,6 +133,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     SkillsService, // Skill library (Stage 4/5)
     CoachService, // Nightly self-improvement loop (Stage 5)
     DeepAgentSessionService, // DeepAgent Sessions (Phase 1 Manual Bridge)
+    SessionActivityService, // Session Activity Tracking (Phase 2 Auto-Sync)
     
     // Agents
     PlannerAgent,
@@ -176,6 +179,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
     CoachController, // Nightly Coach Analysis (Stage 5)
     DeepAgentController, // DeepAgent Terminal (IDE)
     DeepAgentSessionController, // DeepAgent Sessions API (Phase 1 Manual Bridge)
+    SessionActivityController, // Session Activity Tracking API (Phase 2 Auto-Sync)
   ],
 })
 export class AppModule {}
